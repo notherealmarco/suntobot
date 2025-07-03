@@ -11,6 +11,7 @@ dependencies = [
     "psycopg2-binary>=2.9.9",
     "python-dateutil>=2.8.2",
     "pillow>=10.0.0",
+    "dotenv>=0.9.9",
 ]
 
 [project.optional-dependencies]

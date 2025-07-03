@@ -1,9 +1,10 @@
+import logging
 import os
 import uuid
+
+from PIL import Image
 from telegram import Update
 from telegram.ext import ContextTypes
-from PIL import Image
-import logging
 
 from config import Config
 from database import DatabaseManager
@@ -17,7 +18,9 @@ class MessageHandler:
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager = db_manager
 
-    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def handle_message(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
         """Handle incoming messages."""
         message = update.message
 
@@ -74,7 +77,7 @@ class MessageHandler:
 
     async def _compress_image(
         self, file_path: str, max_size: tuple = (1024, 1024), quality: int = 85
-    ):
+    ) -> None:
         """Compress image to reduce file size."""
         try:
             with Image.open(file_path) as img:
