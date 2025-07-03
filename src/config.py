@@ -48,14 +48,8 @@ Formatta la tua risposta come:
 - Argomento 3: Breve riassunto della discussione
 
 L'utente richiedente è: {username}
-        """
+        """,
     )
-
-    # File Storage
-    IMAGE_BASE_DIR: str = os.getenv("IMAGE_BASE_DIR", "/app/images")
-
-    # Bot Behavior
-    SUMMARY_COMMAND: str = os.getenv("SUMMARY_COMMAND", "/sunto")
 
     @classmethod
     def validate(cls) -> None:

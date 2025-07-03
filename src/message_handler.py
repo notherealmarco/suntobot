@@ -39,13 +39,11 @@ class MessageHandler:
         # Handle images
         if message.photo:
             try:
-                # Process image in memory and get description
                 image_description = await self._process_image(message, context)
                 logger.info(f"Image analyzed: {image_description}")
             except Exception as e:
                 logger.error(f"Failed to process/analyze image: {e}")
 
-        # Save message to database (no image_path needed anymore)
         try:
             self.db_manager.save_message(
                 chat_id=chat_id,
@@ -98,5 +96,7 @@ class MessageHandler:
                 return output.getvalue()
 
         except Exception as e:
+            logger.error(f"Failed to compress image in memory: {e}")
+            return None
             logger.error(f"Failed to compress image in memory: {e}")
             return None

@@ -28,7 +28,6 @@ class Message(Base):
     user_id = Column(BigInteger, nullable=False)
     username = Column(String(255))
     message_text = Column(Text)
-    image_path = Column(String(500))
     image_description = Column(Text)  # AI-generated description of the image
     timestamp = Column(DateTime, default=func.current_timestamp())
     message_id = Column(BigInteger, unique=True, nullable=False)
@@ -113,4 +112,5 @@ class DatabaseManager:
 
             return last_message.timestamp if last_message else None
         finally:
+            session.close()
             session.close()

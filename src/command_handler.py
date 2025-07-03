@@ -34,9 +34,13 @@ class CommandHandler:
         username = message.from_user.username or f"user_{user_id}"
         chat_id = message.chat_id
 
-        time_interval = self._parse_command_arguments(message.text)
+        # Send a loading message and store it to edit later
+        loading_message = await message.reply_text(
+            "Sto generando il riassunto, attendere prego... ⏳"
+        )
 
         try:
+            time_interval = self._parse_command_arguments(message.text)
             since_timestamp, time_range_desc = self._determine_time_range(
                 time_interval, chat_id, user_id
             )
@@ -51,14 +55,16 @@ class CommandHandler:
                 time_range_desc=time_range_desc,
             )
 
-            await message.reply_text(
+            # Edit the loading message with the final summary
+            await loading_message.edit_text(
                 f"📋 *Sunto*\n\n{summary}", parse_mode="Markdown"
             )
 
         except Exception as e:
             logger.error(f"Failed to generate summary: {e}")
-            await message.reply_text(
-                "Sorry, I couldn't generate a summary at this time. Please try again later."
+            # Edit the loading message with an error
+            await loading_message.edit_text(
+                "Scusa, non sono riuscito a generare un riassunto in questo momento. Riprova più tardi."
             )
 
     def _parse_command_arguments(self, command_text: str) -> Optional[timedelta]:
@@ -119,5 +125,4 @@ class CommandHandler:
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
         """Handle /help command."""
-        await self.handle_start_command(update, context)
         await self.handle_start_command(update, context)

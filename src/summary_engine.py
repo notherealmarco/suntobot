@@ -4,7 +4,6 @@ import openai
 import logging
 from typing import List
 
-import openai
 
 from config import Config
 from database import Message
@@ -80,9 +79,9 @@ class SummaryEngine:
                     f"[{timestamp}] {username}: {message.message_text}"
                 )
             elif message.image_description:
-                # Image was processed (we have description but no stored file)
                 formatted_lines.append(
                     f"[{timestamp}] {username}: [sent an image: {message.image_description}]"
                 )
 
+        return "\n".join(formatted_lines)
         return "\n".join(formatted_lines)
