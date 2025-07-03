@@ -1,0 +1,48 @@
+name: Code Check
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main", "develop" ]
+
+jobs:
+  code-check:
+    name: code-check
+    runs-on: docker
+    container:
+      image: catthehacker/ubuntu:act-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip' # caching pip dependencies
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync -n
+
+      - name: Run ruff check
+        run: |
+          ruff check .
+
+#      - name: Run type checking with mypy
+#        run: |
+#          mypy --ignore-missing-imports .
+
+#      # Only trigger the build workflow if this is a push to main branch and all checks pass
+#      - name: Trigger build workflow
+#        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && success() }}
+#        run: |
+#          curl -X POST \
+#            -H "Authorization: token ${{ secrets.FORGEJO_TOKEN }}" \
+#            -H "Accept: application/json" \
+#            -H "Content-Type: application/json" \
+#            "${{ github.server_url }}/api/v1/repos/${{ github.repository }}/actions/workflows/main.yml/dispatches" \
+#            -d '{"ref":"main"}'
