@@ -1,7 +1,6 @@
 """Configuration management for the bot."""
 
 import os
-from typing import List
 
 
 class Config:

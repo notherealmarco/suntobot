@@ -7,7 +7,6 @@ personalized summaries using an LLM when requested by users.
 
 import asyncio
 import logging
-from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -60,11 +59,8 @@ class SuntoBot:
         self.application.add_handler(
             CommandHandler("help", self.command_handler.handle_help_command)
         )
-
-        # Dynamic summary command handler
-        summary_command = Config.SUMMARY_COMMAND.lstrip("/")
         self.application.add_handler(
-            CommandHandler(summary_command, self.command_handler.handle_summary_command)
+            CommandHandler("sunto", self.command_handler.handle_summary_command)
         )
 
         # Message handler for all text and photo messages
@@ -88,7 +84,6 @@ class SuntoBot:
         """Run the bot."""
         logger.info("Starting SuntoBot...")
         logger.info(f"Monitoring groups: {Config.WHITELISTED_GROUPS}")
-        logger.info(f"Summary command: {Config.SUMMARY_COMMAND}")
 
         # Start the bot
         await self.application.initialize()

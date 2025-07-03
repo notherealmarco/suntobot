@@ -2,10 +2,9 @@
 
 import openai
 from typing import List
-from datetime import datetime, timedelta
 from config import Config
 from database import Message
-from time_utils import get_time_range_description, format_timestamp_for_display
+from src.time_utils import format_timestamp_for_display
 
 
 class SummaryEngine:

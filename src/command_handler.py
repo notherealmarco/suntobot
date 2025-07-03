@@ -4,14 +4,11 @@ import re
 from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import ContextTypes
-import logging
 
 from config import Config
 from database import DatabaseManager
 from summary_engine import SummaryEngine
 from time_utils import parse_time_interval, get_time_range_description
-
-logger = logging.getLogger(__name__)
 
 
 class CommandHandler:
@@ -77,8 +74,7 @@ class CommandHandler:
                 f"📋 *Chat Summary*\n\n{summary}", parse_mode="Markdown"
             )
 
-        except Exception as e:
-            logger.error(f"Error generating summary: {e}")
+        except Exception:
             await message.reply_text(
                 "Sorry, I couldn't generate a summary at this time. Please try again later."
             )
