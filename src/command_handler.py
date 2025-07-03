@@ -1,6 +1,6 @@
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from telegram import Update
@@ -71,18 +71,18 @@ class CommandHandler:
         self, time_interval: Optional[timedelta], chat_id: int, user_id: int
     ) -> tuple[datetime, str]:
         if time_interval:
-            since_timestamp = datetime.now() - time_interval
+            since_timestamp = datetime.now(timezone.utc) - time_interval
             time_range_desc = get_time_range_description(time_interval)
         else:
             last_message_time = self.db_manager.get_last_user_message_time(
                 chat_id, user_id
-            )
+            ).replace(tzinfo=timezone.utc)
             if last_message_time:
-                time_since_last = datetime.now() - last_message_time
+                time_since_last = datetime.now(timezone.utc) - last_message_time
                 since_timestamp = last_message_time
                 time_range_desc = f"Since your last message ({time_since_last.total_seconds() / 3600:.1f}h ago)"
             else:
-                since_timestamp = datetime.now() - timedelta(hours=24)
+                since_timestamp = datetime.now(timezone.utc) - timedelta(hours=24)
                 time_range_desc = "Last 24 hours (no previous messages found)"
 
         return since_timestamp, time_range_desc

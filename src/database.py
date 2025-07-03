@@ -3,6 +3,7 @@ from typing import List, Optional
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     Column,
     DateTime,
     Index,
@@ -27,6 +28,7 @@ class Message(Base):
     username = Column(String(255))
     message_text = Column(Text)
     image_description = Column(Text)  # AI-generated description of the image
+    has_photo = Column(Boolean, default=False)  # Track if message contained a photo
     timestamp = Column(DateTime, default=func.current_timestamp())
     message_id = Column(BigInteger, unique=True, nullable=False)
 
@@ -54,6 +56,7 @@ class DatabaseManager:
         message_text: Optional[str],
         image_description: Optional[str],
         message_id: int,
+        has_photo: bool = False,
     ) -> None:
         session = self.get_session()
         try:
@@ -64,6 +67,7 @@ class DatabaseManager:
                 message_text=message_text,
                 image_description=image_description,
                 message_id=message_id,
+                has_photo=has_photo,
             )
             session.add(message)
             session.commit()
