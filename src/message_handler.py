@@ -1,16 +1,13 @@
 import logging
-import os
-import uuid
 
 from PIL import Image
-from datetime import datetime
 from io import BytesIO
 from telegram import Update
 from telegram.ext import ContextTypes
 
 from config import Config
 from database import DatabaseManager
-from image_analyzer import ImageAnalyzer
+from src.image_analyzer import ImageAnalyzer
 
 logger = logging.getLogger(__name__)
 

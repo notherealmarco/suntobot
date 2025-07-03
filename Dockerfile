@@ -16,7 +16,7 @@ RUN pip install uv
 RUN uv sync --frozen
 
 # Copy application code
-COPY . .
+COPY demo .
 
 # Create images directory
 RUN mkdir -p /app/images
