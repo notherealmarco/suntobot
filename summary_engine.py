@@ -1,11 +1,14 @@
 """LLM integration for generating summaries."""
 
 import openai
+import logging
 from typing import List
 from datetime import datetime, timedelta
 from config import Config
 from database import Message
 from time_utils import get_time_range_description, format_timestamp_for_display
+
+logger = logging.getLogger(__name__)
 
 
 class SummaryEngine:
@@ -44,6 +47,7 @@ class SummaryEngine:
         system_prompt = f"{Config.SYSTEM_PROMPT}\n\nThe requesting user is: {requesting_username}\nTime period: {time_range_desc}"
 
         try:
+            # Use text-only approach with image descriptions
             response = await self.client.chat.completions.create(
                 model="clusterino.gemma3:27b-it-qat",
                 messages=[
@@ -53,7 +57,7 @@ class SummaryEngine:
                 max_tokens=500,
                 temperature=0.7,
             )
-
+            
             return response.choices[0].message.content.strip()
 
         except Exception as e:
@@ -81,7 +85,13 @@ class SummaryEngine:
                 formatted_lines.append(
                     f"[{timestamp}] {username}: {message.message_text}"
                 )
+            elif message.image_description:
+                # Image was processed (we have description but no stored file)
+                formatted_lines.append(
+                    f"[{timestamp}] {username}: [sent an image: {message.image_description}]"
+                )
             elif message.image_path:
+                # Legacy: for old messages that might still have image_path
                 formatted_lines.append(f"[{timestamp}] {username}: [sent an image]")
 
         return "\n".join(formatted_lines)

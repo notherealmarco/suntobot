@@ -28,6 +28,7 @@ class Message(Base):
     username = Column(String(255))
     message_text = Column(Text)
     image_path = Column(String(500))
+    image_description = Column(Text)  # AI-generated description of the image
     timestamp = Column(DateTime, default=func.current_timestamp())
     message_id = Column(BigInteger, unique=True, nullable=False)
 
@@ -57,8 +58,9 @@ class DatabaseManager:
         user_id: int,
         username: str,
         message_text: str,
-        image_path: str,
-        message_id: int,
+        image_path: str = None,  # Made optional since we're not storing images
+        image_description: str = None,
+        message_id: int = None,
     ):
         """Save a message to the database."""
         session = self.get_session()
@@ -69,6 +71,7 @@ class DatabaseManager:
                 username=username,
                 message_text=message_text,
                 image_path=image_path,
+                image_description=image_description,
                 message_id=message_id,
             )
             session.add(message)

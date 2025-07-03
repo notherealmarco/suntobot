@@ -74,7 +74,7 @@ class CommandHandler:
 
             # Send summary as reply
             await message.reply_text(
-                f"📋 *Chat Summary*\n\n{summary}", parse_mode="Markdown"
+                f"📋 *Sunto*\n\n{summary}", parse_mode="Markdown"
             )
 
         except Exception as e:

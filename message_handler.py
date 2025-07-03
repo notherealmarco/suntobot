@@ -1,8 +1,8 @@
 """Message handling for the Telegram bot."""
 
-import os
 import uuid
 from datetime import datetime
+from io import BytesIO
 from telegram import Update
 from telegram.ext import ContextTypes
 from PIL import Image
@@ -10,6 +10,7 @@ import logging
 
 from config import Config
 from database import DatabaseManager
+from image_analyzer import ImageAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ class MessageHandler:
 
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager = db_manager
+        self.image_analyzer = ImageAnalyzer()
 
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle incoming messages."""
@@ -33,54 +35,58 @@ class MessageHandler:
         chat_id = message.chat_id
         message_id = message.message_id
         message_text = message.text
-        image_path = None
+        image_description = None
 
         # Handle images
         if message.photo:
             try:
-                image_path = await self._save_image(message, context)
+                # Process image in memory and get description
+                image_description = await self._process_image(message, context)
+                logger.info(f"Image analyzed: {image_description}")
             except Exception as e:
-                logger.error(f"Failed to save image: {e}")
+                logger.error(f"Failed to process/analyze image: {e}")
 
-        # Save message to database
+        # Save message to database (no image_path needed anymore)
         try:
             self.db_manager.save_message(
                 chat_id=chat_id,
                 user_id=user_id,
                 username=username,
                 message_text=message_text,
-                image_path=image_path,
+                image_path=None,  # No longer storing image files
+                image_description=image_description,
                 message_id=message_id,
             )
             logger.debug(f"Saved message {message_id} from user {username}")
         except Exception as e:
             logger.error(f"Failed to save message to database: {e}")
 
-    async def _save_image(self, message, context) -> str:
-        """Download and save image from message."""
+    async def _process_image(self, message, context) -> str:
+        """Process image in memory and return description."""
         # Get the largest photo size
         photo = message.photo[-1]
 
-        # Generate unique filename
-        file_extension = ".jpg"
-        filename = f"{uuid.uuid4()}{file_extension}"
-        file_path = os.path.join(Config.IMAGE_BASE_DIR, filename)
-
-        # Download the file
+        # Download image data into memory
         file = await context.bot.get_file(photo.file_id)
-        await file.download_to_drive(file_path)
+        image_bytes = BytesIO()
+        await file.download_to_memory(image_bytes)
+        image_bytes.seek(0)
 
-        # Compress the image
-        await self._compress_image(file_path)
+        # Compress the image in memory
+        compressed_image_data = await self._compress_image_in_memory(image_bytes)
+        
+        # Analyze the image content
+        if compressed_image_data:
+            return await self.image_analyzer.analyze_image_data(compressed_image_data)
+        
+        return None
 
-        return file_path
-
-    async def _compress_image(
-        self, file_path: str, max_size: tuple = (1024, 1024), quality: int = 85
-    ):
-        """Compress image to reduce file size."""
+    async def _compress_image_in_memory(
+        self, image_bytes: BytesIO, max_size: tuple = (1024, 1024), quality: int = 85
+    ) -> bytes:
+        """Compress image in memory and return compressed bytes."""
         try:
-            with Image.open(file_path) as img:
+            with Image.open(image_bytes) as img:
                 # Convert to RGB if necessary
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
@@ -88,8 +94,11 @@ class MessageHandler:
                 # Resize if necessary
                 img.thumbnail(max_size, Image.Resampling.LANCZOS)
 
-                # Save with compression
-                img.save(file_path, "JPEG", quality=quality, optimize=True)
+                # Save compressed image to bytes
+                output = BytesIO()
+                img.save(output, "JPEG", quality=quality, optimize=True)
+                return output.getvalue()
 
         except Exception as e:
-            logger.error(f"Failed to compress image {file_path}: {e}")
+            logger.error(f"Failed to compress image in memory: {e}")
+            return None

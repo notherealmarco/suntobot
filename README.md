@@ -177,3 +177,32 @@ For issues and questions:
 - Open an issue on GitHub
 - Check the documentation
 - Review the logs for error details
+
+### 🖼️ **Image Analysis**
+
+The bot automatically analyzes images sent in whitelisted groups:
+
+1. **Image Processing**: When someone sends an image:
+   - Downloads and compresses the image (max 1024x1024, 85% quality)
+   - Saves to local storage with UUID filename
+   - Sends image to multimodal LLM for analysis
+
+2. **Description Generation**: Uses your multimodal model to:
+   - Generate concise 1-2 sentence descriptions
+   - Extract text content if present in images
+   - Focus on main subjects and activities
+
+3. **Database Storage**: Stores both:
+   - Image file path for reference
+   - AI-generated description as text
+
+4. **Summary Integration**: Descriptions are included in summaries as:
+   ```
+   [timestamp] username: [sent an image: A group photo of people at a conference table discussing documents]
+   ```
+
+**Example Image Analysis Flow:**
+```
+User sends image → Bot analyzes → "A screenshot of code showing a Python function"
+→ Stored in DB → Included in future summaries
+```
