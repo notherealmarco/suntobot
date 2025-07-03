@@ -82,7 +82,7 @@ class CommandHandler:
         else:
             last_message_time = self.db_manager.get_last_user_message_time(
                 chat_id, user_id
-            )
+            ).replace(tzinfo=timezone.utc)
             if last_message_time:
                 time_since_last = datetime.now(timezone.utc) - last_message_time
                 since_timestamp = last_message_time
