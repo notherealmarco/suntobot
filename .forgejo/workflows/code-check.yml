@@ -25,8 +25,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install uv
-          uv sync -n
+          pip install uv ruff
+          uv sync --dev
+
+      - name: Run ruff format
+        run: |
+          ruff format .
 
       - name: Run ruff check
         run: |
@@ -34,7 +38,7 @@ jobs:
 
 #      - name: Run type checking with mypy
 #        run: |
-#          mypy --ignore-missing-imports .
+#          uv run mypy --ignore-missing-imports .
 
 #      # Only trigger the build workflow if this is a push to main branch and all checks pass
 #      - name: Trigger build workflow
