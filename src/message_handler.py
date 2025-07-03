@@ -35,9 +35,11 @@ class MessageHandler:
         message_id = message.message_id
         message_text = message.text
         image_description = None
+        has_photo = False
 
         # Handle images
         if message.photo:
+            has_photo = True
             try:
                 # Process image in memory and get description
                 image_description = await self._process_image(message, context)
@@ -45,7 +47,7 @@ class MessageHandler:
             except Exception as e:
                 logger.error(f"Failed to process/analyze image: {e}")
 
-        # Save message to database (no image_path needed anymore)
+        # Save message to database
         try:
             self.db_manager.save_message(
                 chat_id=chat_id,
@@ -54,6 +56,7 @@ class MessageHandler:
                 message_text=message_text,
                 image_description=image_description,
                 message_id=message_id,
+                has_photo=has_photo,
             )
             logger.debug(f"Saved message {message_id} from user {username}")
         except Exception as e:

@@ -84,5 +84,10 @@ class SummaryEngine:
                 formatted_lines.append(
                     f"[{timestamp}] {username}: [sent an image: {message.image_description}]"
                 )
+            elif message.has_photo:
+                # Image was sent but analysis failed or is pending
+                formatted_lines.append(
+                    f"[{timestamp}] {username}: [sent an image]"
+                )
 
         return "\n".join(formatted_lines)

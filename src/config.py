@@ -37,10 +37,9 @@ Istruzioni:
 - Evidenzia decisioni, annunci, domande e azioni chiave
 - Indica quando l'utente richiedente è stato contattato direttamente, menzionato o ha partecipato
 - Se l'utente richiedente ha perso informazioni importanti durante la sua assenza, sottolinea tali punti
-- Mantieni ogni punto elenco conciso e attuabile
-- Se non si è verificata alcuna attività significativa, indica semplicemente "Nessuna discussione importante durante questo periodo"
 - Usa un tono amichevole e colloquiale
 - Ordina i punti elenco in base alla pertinenza per l'utente richiedente, quindi in ordine cronologico
+- Sii breve e diretto, evitando dettagli non necessari. I punti elenco dovrebbero essere coincisi e facili da leggere
 
 Formatta la tua risposta come:
 - Argomento 1: Breve riassunto della discussione
