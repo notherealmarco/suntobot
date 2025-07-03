@@ -1,5 +1,3 @@
-"""Database models for the Telegram bot."""
-
 from sqlalchemy import (
     BigInteger,
     Column,

@@ -11,18 +11,13 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U demo"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
+      - ./postgres_data:/var/lib/postgresql/data
+    
   suntobot:
-    build: ..
+    build: .
+    container_name: suntobot
     depends_on:
-      db:
-        condition: service_healthy
+      - db
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - WHITELISTED_GROUPS=${WHITELISTED_GROUPS}
@@ -31,7 +26,6 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - SYSTEM_PROMPT=${SYSTEM_PROMPT}
       - IMAGE_BASE_DIR=/app/images
-      - SUMMARY_COMMAND=${SUMMARY_COMMAND:-/sunto}
     volumes:
       - ./images:/app/images
     restart: unless-stopped

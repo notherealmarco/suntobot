@@ -1,5 +1,3 @@
-"""Command handlers for the Telegram bot."""
-
 import re
 from datetime import datetime, timedelta
 from telegram import Update

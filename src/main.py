@@ -1,10 +1,3 @@
-"""
-Telegram Chat Summarization Bot
-
-A Telegram bot that automatically saves chat messages and provides
-personalized summaries using an LLM when requested by users.
-"""
-
 import asyncio
 import logging
 from telegram.ext import (

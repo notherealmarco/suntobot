@@ -1,5 +1,3 @@
-"""LLM integration for generating summaries."""
-
 import openai
 from typing import List
 from config import Config

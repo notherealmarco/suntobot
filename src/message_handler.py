@@ -1,5 +1,3 @@
-"""Message handling for the Telegram bot."""
-
 import os
 import uuid
 from telegram import Update

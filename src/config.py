@@ -1,5 +1,3 @@
-"""Configuration management for the bot."""
-
 import os
 
 

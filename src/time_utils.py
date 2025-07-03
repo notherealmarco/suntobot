@@ -1,5 +1,3 @@
-"""Time parsing utilities for the bot."""
-
 import re
 from datetime import datetime, timedelta
 from typing import Optional
