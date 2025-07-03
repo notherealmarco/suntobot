@@ -15,8 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class CommandHandler:
-    """Handles bot commands."""
-
     def __init__(self, db_manager: DatabaseManager, summary_engine: SummaryEngine):
         self.db_manager = db_manager
         self.summary_engine = summary_engine
@@ -24,7 +22,6 @@ class CommandHandler:
     async def handle_summary_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Handle summary command (e.g., /sunto)."""
         message = update.message
 
         if message.chat_id not in Config.WHITELISTED_GROUPS:
@@ -34,10 +31,7 @@ class CommandHandler:
         username = message.from_user.username or f"user_{user_id}"
         chat_id = message.chat_id
 
-        # Send a loading message and store it to edit later
-        loading_message = await message.reply_text(
-            "Sto generando il riassunto, attendere prego... ⏳"
-        )
+        loading_message = await message.reply_text("Generating sunto, waiting... ⏳")
 
         try:
             time_interval = self._parse_command_arguments(message.text)
@@ -55,20 +49,15 @@ class CommandHandler:
                 time_range_desc=time_range_desc,
             )
 
-            # Edit the loading message with the final summary
             await loading_message.edit_text(
                 f"📋 *Sunto*\n\n{summary}", parse_mode="Markdown"
             )
 
         except Exception as e:
             logger.error(f"Failed to generate summary: {e}")
-            # Edit the loading message with an error
-            await loading_message.edit_text(
-                "Scusa, non sono riuscito a generare un riassunto in questo momento. Riprova più tardi."
-            )
+            await loading_message.edit_text("Failed to generate summary.")
 
     def _parse_command_arguments(self, command_text: str) -> Optional[timedelta]:
-        """Parse time interval from command arguments."""
         pattern = r"/\w+\s+(\d+[mhd])"
         match = re.search(pattern, command_text)
 
@@ -81,7 +70,6 @@ class CommandHandler:
     def _determine_time_range(
         self, time_interval: Optional[timedelta], chat_id: int, user_id: int
     ) -> tuple[datetime, str]:
-        """Determine the time range for the summary."""
         if time_interval:
             since_timestamp = datetime.now() - time_interval
             time_range_desc = get_time_range_description(time_interval)
@@ -102,7 +90,6 @@ class CommandHandler:
     async def handle_start_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Handle /start command."""
         message = update.message
 
         if message.chat_id not in Config.WHITELISTED_GROUPS:
@@ -124,5 +111,4 @@ class CommandHandler:
     async def handle_help_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Handle /help command."""
         await self.handle_start_command(update, context)

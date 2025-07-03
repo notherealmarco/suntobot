@@ -13,8 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 class SummaryEngine:
-    """Handles LLM-based summary generation."""
-
     def __init__(self):
         self.client = openai.AsyncOpenAI(
             api_key=Config.OPENAI_API_KEY, base_url=Config.OPENAI_BASE_URL
@@ -23,13 +21,11 @@ class SummaryEngine:
     async def generate_summary(
         self, messages: List[Message], requesting_username: str, time_range_desc: str
     ) -> str:
-        """Generate a personalized summary for the requesting user."""
         if not messages:
             return (
                 f"No messages found in the specified time period ({time_range_desc})."
             )
 
-        # Format messages for LLM
         formatted_messages = self._format_messages_for_llm(
             messages, requesting_username, time_range_desc
         )
@@ -60,7 +56,6 @@ class SummaryEngine:
     def _format_messages_for_llm(
         self, messages: List[Message], requesting_username: str, time_range_desc: str
     ) -> str:
-        """Format messages for LLM consumption."""
         formatted_lines = [
             "Chat Summary Request",
             f"Requesting User: @{requesting_username}",
@@ -83,5 +78,4 @@ class SummaryEngine:
                     f"[{timestamp}] {username}: [sent an image: {message.image_description}]"
                 )
 
-        return "\n".join(formatted_lines)
         return "\n".join(formatted_lines)

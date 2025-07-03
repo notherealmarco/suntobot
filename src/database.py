@@ -19,8 +19,6 @@ Base = declarative_base()
 
 
 class Message(Base):
-    """Model for storing Telegram messages."""
-
     __tablename__ = "messages"
 
     id = Column(Integer, primary_key=True)
@@ -38,8 +36,6 @@ class Message(Base):
 
 
 class DatabaseManager:
-    """Manages database connections and operations."""
-
     def __init__(self, database_url: str):
         self.engine = create_engine(database_url)
         Base.metadata.create_all(self.engine)
@@ -48,7 +44,6 @@ class DatabaseManager:
         )
 
     def get_session(self):
-        """Get a database session."""
         return self.SessionLocal()
 
     def save_message(
@@ -60,7 +55,6 @@ class DatabaseManager:
         image_description: Optional[str],
         message_id: int,
     ) -> None:
-        """Save a message to the database."""
         session = self.get_session()
         try:
             message = Message(
@@ -82,7 +76,6 @@ class DatabaseManager:
     def get_messages_since(
         self, chat_id: int, user_id: int, since_timestamp: datetime
     ) -> List[Message]:
-        """Get messages since a specific timestamp."""
         session = self.get_session()
         try:
             messages = (
@@ -100,7 +93,6 @@ class DatabaseManager:
     def get_last_user_message_time(
         self, chat_id: int, user_id: int
     ) -> Optional[datetime]:
-        """Get the timestamp of the user's last message."""
         session = self.get_session()
         try:
             last_message = (

@@ -10,23 +10,12 @@ logger = logging.getLogger(__name__)
 
 
 class ImageAnalyzer:
-    """Handles image analysis using multimodal LLM."""
-
     def __init__(self):
         self.client = openai.AsyncOpenAI(
             api_key=Config.OPENAI_API_KEY, base_url=Config.OPENAI_BASE_URL
         )
 
     async def analyze_image_data(self, image_data: bytes) -> Optional[str]:
-        """
-        Analyze image data and return a description.
-
-        Args:
-            image_data: Raw image bytes
-
-        Returns:
-            Description of the image content or None if analysis fails
-        """
         try:
             # Encode the image data
             image_base64 = base64.b64encode(image_data).decode("utf-8")

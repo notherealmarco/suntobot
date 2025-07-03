@@ -4,7 +4,6 @@ from typing import Optional
 
 
 def parse_time_interval(interval_str: str) -> Optional[timedelta]:
-    """Parse human-readable time intervals like "10m", "1h", "24h", "10d"."""
     if not interval_str:
         return None
 
@@ -21,7 +20,6 @@ def parse_time_interval(interval_str: str) -> Optional[timedelta]:
 
 
 def get_time_range_description(interval: timedelta) -> str:
-    """Get a human-readable description of a time interval."""
     total = int(interval.total_seconds())
     if total < 3600:
         mins = total // 60
@@ -34,5 +32,4 @@ def get_time_range_description(interval: timedelta) -> str:
 
 
 def format_timestamp_for_display(timestamp: datetime) -> str:
-    """Format timestamp for display in summaries."""
     return timestamp.strftime("%Y-%m-%d %H:%M:%S")
