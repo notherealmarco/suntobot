@@ -1,15 +1,15 @@
-"""Command handlers for the Telegram bot."""
-
+import logging
 import re
 from datetime import datetime, timedelta
+from typing import Optional
+
 from telegram import Update
 from telegram.ext import ContextTypes
-import logging
 
 from config import Config
 from database import DatabaseManager
 from summary_engine import SummaryEngine
-from time_utils import parse_time_interval, get_time_range_description
+from time_utils import get_time_range_description, parse_time_interval
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +23,10 @@ class CommandHandler:
 
     async def handle_summary_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ):
+    ) -> None:
         """Handle summary command (e.g., /sunto)."""
         message = update.message
 
-        # Only respond in whitelisted groups
         if message.chat_id not in Config.WHITELISTED_GROUPS:
             return
 
@@ -35,57 +34,35 @@ class CommandHandler:
         username = message.from_user.username or f"user_{user_id}"
         chat_id = message.chat_id
 
-        # Parse command arguments
-        command_text = message.text
-        time_interval = self._parse_command_arguments(command_text)
+        time_interval = self._parse_command_arguments(message.text)
 
         try:
-            # Determine time range
-            if time_interval:
-                # Use specified time interval
-                since_timestamp = datetime.now() - time_interval
-                time_range_desc = get_time_range_description(time_interval)
-            else:
-                # Default: messages since user's last message
-                last_message_time = self.db_manager.get_last_user_message_time(
-                    chat_id, user_id
-                )
-                if last_message_time:
-                    # Calculate time since last message
-                    time_since_last = datetime.now() - last_message_time
-                    since_timestamp = last_message_time
-                    time_range_desc = f"Since your last message ({time_since_last.total_seconds() / 3600:.1f}h ago)"
-                else:
-                    # If no previous message, use last 24 hours
-                    since_timestamp = datetime.now() - timedelta(hours=24)
-                    time_range_desc = "Last 24 hours (no previous messages found)"
+            since_timestamp, time_range_desc = self._determine_time_range(
+                time_interval, chat_id, user_id
+            )
 
-            # Get messages from database
             messages = self.db_manager.get_messages_since(
                 chat_id, user_id, since_timestamp
             )
 
-            # Generate summary
             summary = await self.summary_engine.generate_summary(
                 messages=messages,
                 requesting_username=username,
                 time_range_desc=time_range_desc,
             )
 
-            # Send summary as reply
             await message.reply_text(
                 f"📋 *Sunto*\n\n{summary}", parse_mode="Markdown"
             )
 
         except Exception as e:
-            logger.error(f"Error generating summary: {e}")
+            logger.error(f"Failed to generate summary: {e}")
             await message.reply_text(
                 "Sorry, I couldn't generate a summary at this time. Please try again later."
             )
 
-    def _parse_command_arguments(self, command_text: str) -> timedelta:
+    def _parse_command_arguments(self, command_text: str) -> Optional[timedelta]:
         """Parse time interval from command arguments."""
-        # Extract time interval from command (e.g., "/sunto 2h", "/sunto 30m")
         pattern = r"/\w+\s+(\d+[mhd])"
         match = re.search(pattern, command_text)
 
@@ -95,13 +72,33 @@ class CommandHandler:
 
         return None
 
+    def _determine_time_range(
+        self, time_interval: Optional[timedelta], chat_id: int, user_id: int
+    ) -> tuple[datetime, str]:
+        """Determine the time range for the summary."""
+        if time_interval:
+            since_timestamp = datetime.now() - time_interval
+            time_range_desc = get_time_range_description(time_interval)
+        else:
+            last_message_time = self.db_manager.get_last_user_message_time(
+                chat_id, user_id
+            )
+            if last_message_time:
+                time_since_last = datetime.now() - last_message_time
+                since_timestamp = last_message_time
+                time_range_desc = f"Since your last message ({time_since_last.total_seconds() / 3600:.1f}h ago)"
+            else:
+                since_timestamp = datetime.now() - timedelta(hours=24)
+                time_range_desc = "Last 24 hours (no previous messages found)"
+
+        return since_timestamp, time_range_desc
+
     async def handle_start_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ):
+    ) -> None:
         """Handle /start command."""
         message = update.message
 
-        # Only respond in whitelisted groups
         if message.chat_id not in Config.WHITELISTED_GROUPS:
             return
 
@@ -120,6 +117,7 @@ class CommandHandler:
 
     async def handle_help_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ):
+    ) -> None:
         """Handle /help command."""
+        await self.handle_start_command(update, context)
         await self.handle_start_command(update, context)

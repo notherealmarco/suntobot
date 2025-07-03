@@ -1,27 +1,32 @@
 """Configuration management for the bot."""
 
 import os
+from dotenv import load_dotenv
 from typing import List
+
+load_dotenv()
 
 
 class Config:
     """Bot configuration from environment variables."""
 
     # Telegram Bot Configuration
-    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-    WHITELISTED_GROUPS = [
+    TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    WHITELISTED_GROUPS: List[int] = [
         int(group_id.strip())
         for group_id in os.getenv("WHITELISTED_GROUPS", "").split(",")
         if group_id.strip()
     ]
 
     # Database Configuration
-    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:pass@localhost/botdb")
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL", "postgresql://user:pass@localhost/botdb"
+    )
 
     # LLM Configuration
-    OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    SYSTEM_PROMPT = os.getenv(
+    OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    SYSTEM_PROMPT: str = os.getenv(
         "SYSTEM_PROMPT",
         """Sei un assistente utile che crea riepiloghi personalizzati per le conversazioni di gruppo su Telegram. Il tuo compito è analizzare i messaggi ricevuti e generare un riepilogo conciso in formato elenco puntato.
 
@@ -47,14 +52,13 @@ L'utente richiedente è: {username}
     )
 
     # File Storage
-    IMAGE_BASE_DIR = os.getenv("IMAGE_BASE_DIR", "/app/images")
+    IMAGE_BASE_DIR: str = os.getenv("IMAGE_BASE_DIR", "/app/images")
 
     # Bot Behavior
-    SUMMARY_COMMAND = os.getenv("SUMMARY_COMMAND", "/sunto")
-    INCLUDE_IMAGES_IN_SUMMARY = os.getenv("INCLUDE_IMAGES_IN_SUMMARY", "true").lower() == "true"
+    SUMMARY_COMMAND: str = os.getenv("SUMMARY_COMMAND", "/sunto")
 
     @classmethod
-    def validate(cls):
+    def validate(cls) -> None:
         """Validate required configuration."""
         required_vars = [
             ("TELEGRAM_BOT_TOKEN", cls.TELEGRAM_BOT_TOKEN),
@@ -70,6 +74,3 @@ L'utente richiedente è: {username}
 
         if not cls.WHITELISTED_GROUPS:
             raise ValueError("No whitelisted groups configured in WHITELISTED_GROUPS")
-
-        # Create image directory if it doesn't exist
-        os.makedirs(cls.IMAGE_BASE_DIR, exist_ok=True)

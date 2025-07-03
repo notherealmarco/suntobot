@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     container_name: suntobot_db
@@ -10,31 +8,5 @@ services:
       POSTGRES_DB: suntobot
     ports:
       - "5432:5432"
-    # volumes:
-    #   - postgres_data:/var/lib/postgresql/data
-    # healthcheck:
-    #   test: ["CMD-SHELL", "pg_isready -U demo"]
-    #   interval: 10s
-    #   timeout: 5s
-    #   retries: 5
-
-#   suntobot:
-#     build: ..
-#     depends_on:
-#       db:
-#         condition: service_healthy
-#     environment:
-#       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-#       - WHITELISTED_GROUPS=${WHITELISTED_GROUPS}
-#       - DATABASE_URL=postgresql://demo:demo@db:5432/suntobot
-#       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
-#       - OPENAI_API_KEY=${OPENAI_API_KEY}
-#       - SYSTEM_PROMPT=${SYSTEM_PROMPT}
-#       - IMAGE_BASE_DIR=/app/images
-#       - SUMMARY_COMMAND=${SUMMARY_COMMAND:-/sunto}
-#     volumes:
-#       - ./images:/app/images
-#     restart: unless-stopped
-
-# volumes:
-#   postgres_data:
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data

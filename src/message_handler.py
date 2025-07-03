@@ -1,12 +1,12 @@
-"""Message handling for the Telegram bot."""
-
+import logging
+import os
 import uuid
+
+from PIL import Image
 from datetime import datetime
 from io import BytesIO
 from telegram import Update
 from telegram.ext import ContextTypes
-from PIL import Image
-import logging
 
 from config import Config
 from database import DatabaseManager
@@ -22,7 +22,9 @@ class MessageHandler:
         self.db_manager = db_manager
         self.image_analyzer = ImageAnalyzer()
 
-    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def handle_message(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
         """Handle incoming messages."""
         message = update.message
 
@@ -53,7 +55,6 @@ class MessageHandler:
                 user_id=user_id,
                 username=username,
                 message_text=message_text,
-                image_path=None,  # No longer storing image files
                 image_description=image_description,
                 message_id=message_id,
             )
@@ -74,11 +75,11 @@ class MessageHandler:
 
         # Compress the image in memory
         compressed_image_data = await self._compress_image_in_memory(image_bytes)
-        
+
         # Analyze the image content
         if compressed_image_data:
             return await self.image_analyzer.analyze_image_data(compressed_image_data)
-        
+
         return None
 
     async def _compress_image_in_memory(

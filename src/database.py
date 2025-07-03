@@ -1,4 +1,5 @@
-"""Database models for the Telegram bot."""
+from datetime import datetime
+from typing import List, Optional
 
 from sqlalchemy import (
     BigInteger,
@@ -32,7 +33,6 @@ class Message(Base):
     timestamp = Column(DateTime, default=func.current_timestamp())
     message_id = Column(BigInteger, unique=True, nullable=False)
 
-    # Index for efficient queries
     __table_args__ = (
         Index("idx_messages_chat_user_time", "chat_id", "user_id", "timestamp"),
     )
@@ -56,12 +56,11 @@ class DatabaseManager:
         self,
         chat_id: int,
         user_id: int,
-        username: str,
-        message_text: str,
-        image_path: str = None,  # Made optional since we're not storing images
-        image_description: str = None,
-        message_id: int = None,
-    ):
+        username: Optional[str],
+        message_text: Optional[str],
+        image_description: Optional[str],
+        message_id: int,
+    ) -> None:
         """Save a message to the database."""
         session = self.get_session()
         try:
@@ -70,7 +69,6 @@ class DatabaseManager:
                 user_id=user_id,
                 username=username,
                 message_text=message_text,
-                image_path=image_path,
                 image_description=image_description,
                 message_id=message_id,
             )
@@ -82,7 +80,9 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def get_messages_since(self, chat_id: int, user_id: int, since_timestamp):
+    def get_messages_since(
+        self, chat_id: int, user_id: int, since_timestamp: datetime
+    ) -> List[Message]:
         """Get messages since a specific timestamp."""
         session = self.get_session()
         try:
@@ -98,7 +98,9 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def get_last_user_message_time(self, chat_id: int, user_id: int):
+    def get_last_user_message_time(
+        self, chat_id: int, user_id: int
+    ) -> Optional[datetime]:
         """Get the timestamp of the user's last message."""
         session = self.get_session()
         try:
