@@ -31,15 +31,15 @@ class MessageHandler:
             return
 
         user_id = message.from_user.id
-        username = message.from_user.username or " ".join(filter(None, [
-            message.from_user.first_name, message.from_user.last_name
-        ]))
+        username = message.from_user.username or " ".join(
+            filter(None, [message.from_user.first_name, message.from_user.last_name])
+        )
         chat_id = message.chat_id
         message_id = message.message_id
         message_text = message.text
         image_description = None
         has_photo = False
-        
+
         # Check for forwarded message information
         is_forwarded = False
         forward_from_username = None
@@ -52,13 +52,21 @@ class MessageHandler:
                 forward_from_username = message.forward_origin.chat.title
             elif message.forward_origin.type == MessageOriginType.USER:
                 forward_from = "user"
-                forward_from_username = message.forward_origin.sender_user.username or " ".join(filter(None, [
-                    message.forward_origin.sender_user.first_name, message.forward_origin.sender_user.last_name
-                ]))
+                forward_from_username = (
+                    message.forward_origin.sender_user.username
+                    or " ".join(
+                        filter(
+                            None,
+                            [
+                                message.forward_origin.sender_user.first_name,
+                                message.forward_origin.sender_user.last_name,
+                            ],
+                        )
+                    )
+                )
             elif message.forward_origin.type == MessageOriginType.HIDDEN_USER:
                 forward_from = "hidden_user"
                 forward_from_username = message.forward_origin.sender_user_name
-
 
         # Handle images
         if message.photo:

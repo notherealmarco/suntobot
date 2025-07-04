@@ -35,7 +35,7 @@ class Message(Base):
     # Forwarded message information
     is_forwarded = Column(Boolean, default=False)
     forward_from_username = Column(String(255))  # Original author's username
-    forward_from = Column(String(255)) # Chat type
+    forward_from = Column(String(255))  # Chat type
 
     __table_args__ = (
         Index("idx_messages_chat_user_time", "chat_id", "user_id", "timestamp"),
