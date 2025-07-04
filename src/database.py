@@ -135,9 +135,7 @@ class DatabaseManager:
 
             messages = (
                 session.query(Message)
-                .filter(
-                    Message.chat_id == chat_id, Message.timestamp >= cutoff_time
-                )
+                .filter(Message.chat_id == chat_id, Message.timestamp >= cutoff_time)
                 .order_by(Message.timestamp.desc())
                 .limit(limit)
                 .all()
@@ -153,9 +151,7 @@ class DatabaseManager:
         session = self.get_session()
         try:
             message = (
-                session.query(Message)
-                .filter(Message.message_id == message_id)
-                .first()
+                session.query(Message).filter(Message.message_id == message_id).first()
             )
             return message
         finally:
@@ -254,20 +250,18 @@ class DatabaseManager:
             messages_before = (
                 session.query(Message)
                 .filter(
-                    Message.chat_id == chat_id,
-                    Message.timestamp < target_timestamp
+                    Message.chat_id == chat_id, Message.timestamp < target_timestamp
                 )
                 .order_by(Message.timestamp.desc())
                 .limit(context_limit // 2)
                 .all()
             )
 
-            # Get messages after the target timestamp  
+            # Get messages after the target timestamp
             messages_after = (
                 session.query(Message)
                 .filter(
-                    Message.chat_id == chat_id,
-                    Message.timestamp > target_timestamp
+                    Message.chat_id == chat_id, Message.timestamp > target_timestamp
                 )
                 .order_by(Message.timestamp.asc())
                 .limit(context_limit // 2)
@@ -280,7 +274,9 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def get_last_user_message_time(self, chat_id: int, user_id: int) -> Optional[datetime]:
+    def get_last_user_message_time(
+        self, chat_id: int, user_id: int
+    ) -> Optional[datetime]:
         """Get the timestamp of the last message from a specific user in a chat."""
         session = self.get_session()
         try:
@@ -290,7 +286,7 @@ class DatabaseManager:
                 .order_by(Message.timestamp.desc())
                 .first()
             )
-            
+
             return last_message.timestamp if last_message else None
         finally:
             session.close()

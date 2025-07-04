@@ -49,17 +49,21 @@ class MessageHandler:
 
         # Handle reply context - format message text to include reply information
         if message.reply_to_message and message_text:
-            reply_author = (
-                message.reply_to_message.from_user.username 
-                or " ".join(filter(None, [
-                    message.reply_to_message.from_user.first_name, 
-                    message.reply_to_message.from_user.last_name
-                ]))
+            reply_author = message.reply_to_message.from_user.username or " ".join(
+                filter(
+                    None,
+                    [
+                        message.reply_to_message.from_user.first_name,
+                        message.reply_to_message.from_user.last_name,
+                    ],
+                )
             )
             reply_text = message.reply_to_message.text or ""
-            
+
             if reply_text:
-                message_text = f"[Replying to @{reply_author}: '{reply_text}'] {message_text}"
+                message_text = (
+                    f"[Replying to @{reply_author}: '{reply_text}'] {message_text}"
+                )
             else:
                 message_text = f"[Replying to @{reply_author}] {message_text}"
 
@@ -202,27 +206,27 @@ class MessageHandler:
                 replied_to_message = self.db_manager.get_message_by_message_id(
                     message.reply_to_message.message_id
                 )
-                
+
                 # If we found the replied-to message and it's not in recent context,
                 # get additional context around that message
                 if replied_to_message:
                     # Check if the replied-to message is already in recent context
                     replied_msg_in_context = any(
-                        msg.message_id == replied_to_message.message_id 
+                        msg.message_id == replied_to_message.message_id
                         for msg in context_messages
                     )
-                    
+
                     if not replied_msg_in_context:
                         # Get context around the replied-to message
                         reply_context = self.db_manager.get_context_around_message(
                             chat_id=message.chat_id,
                             target_timestamp=replied_to_message.timestamp,
-                            context_limit=Config.OLD_MENTION_CONTEXT_SIZE
+                            context_limit=Config.OLD_MENTION_CONTEXT_SIZE,
                         )
-                        
+
                         if reply_context:  # Only if we actually got historical context
                             has_historical_context = True
-                            
+
                             # Merge contexts, removing duplicates and sorting by timestamp
                             all_messages = context_messages + reply_context
                             seen_message_ids = set()
@@ -231,9 +235,11 @@ class MessageHandler:
                                 if msg.message_id not in seen_message_ids:
                                     unique_messages.append(msg)
                                     seen_message_ids.add(msg.message_id)
-                            
+
                             # Sort by timestamp to maintain chronological order
-                            context_messages = sorted(unique_messages, key=lambda m: m.timestamp)
+                            context_messages = sorted(
+                                unique_messages, key=lambda m: m.timestamp
+                            )
 
             # Create a Message object for the current mention
             mention_message_obj = type(
@@ -242,8 +248,12 @@ class MessageHandler:
                 {
                     "message_id": message.message_id,
                     "user_id": message.from_user.id,
-                    "username": message.from_user.username or " ".join(
-                        filter(None, [message.from_user.first_name, message.from_user.last_name])
+                    "username": message.from_user.username
+                    or " ".join(
+                        filter(
+                            None,
+                            [message.from_user.first_name, message.from_user.last_name],
+                        )
                     ),
                     "message_text": message.text,
                     "timestamp": message.date,
@@ -270,7 +280,7 @@ class MessageHandler:
                 reply_to_message_id=message.message_id,
                 parse_mode="HTML",
             )
-            
+
             # Store the bot's reply in the database
             try:
                 bot_info = await context.bot.get_me()
