@@ -46,6 +46,15 @@ class SuntoBot:
         self.application.add_handler(
             CommandHandler("sunto", self.command_handler.handle_summary_command)
         )
+        self.application.add_handler(
+            CommandHandler("allow", self.command_handler.handle_allow_command)
+        )
+        self.application.add_handler(
+            CommandHandler("deny", self.command_handler.handle_deny_command)
+        )
+        self.application.add_handler(
+            CommandHandler("list", self.command_handler.handle_list_command)
+        )
 
         self.application.add_handler(
             MessageHandler(
@@ -63,7 +72,8 @@ class SuntoBot:
 
     async def run(self):
         logger.info("Starting SuntoBot...")
-        logger.info(f"Monitoring groups: {Config.WHITELISTED_GROUPS}")
+        logger.info(f"Admin IDs: {Config.ADMIN_IDS}")
+        logger.info("Groups will be managed dynamically via admin commands")
 
         await self.application.initialize()
         await self.application.start()

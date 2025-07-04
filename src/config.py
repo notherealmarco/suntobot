@@ -12,10 +12,10 @@ class Config:
 
     # Telegram Bot Configuration
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
-    WHITELISTED_GROUPS: List[int] = [
-        int(group_id.strip())
-        for group_id in os.getenv("WHITELISTED_GROUPS", "").split(",")
-        if group_id.strip()
+    ADMIN_IDS: List[int] = [
+        int(admin_id.strip())
+        for admin_id in os.getenv("ADMIN_IDS", "").split(",")
+        if admin_id.strip()
     ]
 
     # Database Configuration
@@ -66,5 +66,5 @@ L'utente richiedente è: {username}
                 f"Missing required environment variables: {', '.join(missing)}"
             )
 
-        if not cls.WHITELISTED_GROUPS:
-            raise ValueError("No whitelisted groups configured in WHITELISTED_GROUPS")
+        if not cls.ADMIN_IDS:
+            raise ValueError("No admin IDs configured in ADMIN_IDS")

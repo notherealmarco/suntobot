@@ -1,9 +1,10 @@
 # SuntoBot - Telegram Chat Summarization Bot
-A Telegram bot that automatically saves chat messages and provides personalized summaries using an LLM when requested by users. The bot operates across multiple whitelisted groups and stores conversation history in a PostgreSQL database.
+A Telegram bot that automatically saves chat messages and provides personalized summaries using an LLM when requested by users. The bot operates in groups authorized by admins and stores conversation history in a PostgreSQL database.
 
 ## Features
-- **Multi-group Support**: Operate in multiple Telegram groups
+- **Dynamic Group Management**: Admins can allow/deny groups using commands
 - **Message Storage**: Save all text messages and compressed images to PostgreSQL
+- **Forwarded Message Support**: Tracks and displays information about forwarded messages
 - **Personalized Summaries**: Generate summaries tailored to the requesting user
 - **Flexible Time Ranges**: Support custom intervals (10m, 1h, 24h, 10d)
 - **LLM Integration**: Uses OpenAI API with configurable base URL
@@ -60,20 +61,31 @@ docker-compose up -d
 | Variable             | Description                        | Required | Default                   |
 | -------------------- | ---------------------------------- | -------- | ------------------------- |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token from @BotFather | Yes      | -                         |
-| `WHITELISTED_GROUPS` | Comma-separated group IDs          | Yes      | -                         |
+| `ADMIN_IDS`          | Comma-separated admin user IDs     | Yes      | -                         |
 | `DATABASE_URL`       | PostgreSQL connection string       | Yes      | -                         |
 | `OPENAI_API_KEY`     | OpenAI API key                     | Yes      | -                         |
 | `OPENAI_BASE_URL`    | OpenAI API base URL                | No       | https://api.openai.com/v1 |
-| `IMAGE_BASE_DIR`     | Directory for storing images       | No       | ./images                  |
 
 ## Usage
 ### Bot Commands
+
+#### User Commands (in allowed groups):
 - `/start` - Show welcome message and help
 - `/help` - Show help information
 - `/sunto` - Get summary since your last message
 - `/sunto 1h` - Get summary for last hour
 - `/sunto 30m` - Get summary for last 30 minutes
 - `/sunto 2d` - Get summary for last 2 days
+
+#### Admin Commands:
+- `/allow` - Allow the current group to use the bot (use in group)
+- `/deny <group_id>` - Deny a group from using the bot (use in private chat)
+- `/list` - List all allowed groups with IDs (use in private chat)
+
+### Group Management
+1. **Add bot to group**: Invite the bot to your Telegram group
+2. **Allow group**: An admin uses `/allow` command in the group
+3. **Manage groups**: Admins can use `/list` and `/deny` commands in private chat
 
 ### Supported Time Formats
 - `m` - minutes (e.g., `30m`)

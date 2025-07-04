@@ -42,6 +42,22 @@ class Message(Base):
     )
 
 
+class AllowedGroup(Base):
+    __tablename__ = "allowed_groups"
+
+    id = Column(Integer, primary_key=True)
+    chat_id = Column(BigInteger, unique=True, nullable=False)
+    chat_title = Column(String(255))
+    allowed_by_admin_id = Column(BigInteger, nullable=False)
+    allowed_at = Column(DateTime, default=func.current_timestamp())
+    is_active = Column(Boolean, default=True)
+
+    __table_args__ = (
+        Index("idx_allowed_groups_chat_id", "chat_id"),
+        Index("idx_allowed_groups_active", "is_active"),
+    )
+
+
 class DatabaseManager:
     def __init__(self, database_url: str):
         self.engine = create_engine(database_url)
@@ -120,4 +136,80 @@ class DatabaseManager:
             return last_message.timestamp if last_message else None
         finally:
             session.close()
+
+    def allow_group(
+        self, chat_id: int, chat_title: str, admin_id: int
+    ) -> None:
+        """Allow a group to use the bot."""
+        session = self.get_session()
+        try:
+            # Check if group already exists
+            existing = session.query(AllowedGroup).filter(
+                AllowedGroup.chat_id == chat_id
+            ).first()
+            
+            if existing:
+                # Reactivate if it was disabled
+                existing.is_active = True
+                existing.allowed_by_admin_id = admin_id
+                existing.chat_title = chat_title
+            else:
+                # Create new entry
+                allowed_group = AllowedGroup(
+                    chat_id=chat_id,
+                    chat_title=chat_title,
+                    allowed_by_admin_id=admin_id,
+                    is_active=True
+                )
+                session.add(allowed_group)
+            
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    def deny_group(self, chat_id: int) -> bool:
+        """Deny a group from using the bot."""
+        session = self.get_session()
+        try:
+            group = session.query(AllowedGroup).filter(
+                AllowedGroup.chat_id == chat_id
+            ).first()
+            
+            if group:
+                group.is_active = False
+                session.commit()
+                return True
+            return False
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    def is_group_allowed(self, chat_id: int) -> bool:
+        """Check if a group is allowed to use the bot."""
+        session = self.get_session()
+        try:
+            group = session.query(AllowedGroup).filter(
+                AllowedGroup.chat_id == chat_id,
+                AllowedGroup.is_active == True
+            ).first()
+            
+            return group is not None
+        finally:
+            session.close()
+
+    def get_allowed_groups(self) -> List[AllowedGroup]:
+        """Get all allowed groups."""
+        session = self.get_session()
+        try:
+            groups = session.query(AllowedGroup).filter(
+                AllowedGroup.is_active == True
+            ).order_by(AllowedGroup.chat_title).all()
+            
+            return groups
+        finally:
             session.close()

@@ -26,8 +26,8 @@ class MessageHandler:
         """Handle incoming messages."""
         message = update.message
 
-        # Only process messages from whitelisted groups
-        if message.chat_id not in Config.WHITELISTED_GROUPS:
+        # Only process messages from allowed groups
+        if not self.db_manager.is_group_allowed(message.chat_id):
             return
 
         user_id = message.from_user.id
