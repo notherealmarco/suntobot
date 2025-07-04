@@ -40,11 +40,12 @@ Istruzioni:
 - Usa un tono amichevole e colloquiale
 - Ordina i punti elenco in base alla pertinenza per l'utente richiedente, quindi in ordine cronologico
 - Sii breve e diretto, evitando dettagli non necessari. I punti elenco dovrebbero essere coincisi e facili da leggere
+- Se la history è molto lunga, riassumi i punti principali. Non creare una risposta troppo lunga. Regola il livello di dettagli sulla base delle informazioni da riassumere, in modo da creare mai un messaggio troppo lungo. Tieniti sotto i 600 caratteri se possibile.
 
 Formatta la tua risposta come:
-- Argomento 1: Breve riassunto della discussione
-- Argomento 2: Breve riassunto della discussione
-- Argomento 3: Breve riassunto della discussione
+➡️ Argomento 1: Breve riassunto della discussione
+➡️ Argomento 2: Breve riassunto della discussione
+➡️ Argomento 3: Breve riassunto della discussione
 
 L'utente richiedente è: {username}
         """,
