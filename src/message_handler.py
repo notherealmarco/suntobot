@@ -29,8 +29,12 @@ class MessageHandler:
         """Handle incoming messages."""
         message = update.message
 
+        if not message:
+            logger.info("Received an update without a message.")
+            return
+
         # Only process messages from allowed groups
-        if not message.chat_id or not self.db_manager.is_group_allowed(message.chat_id):
+        if not self.db_manager.is_group_allowed(message.chat_id):
             return
 
         user_id = message.from_user.id
@@ -210,11 +214,30 @@ class MessageHandler:
             )
 
             # Send reply
-            await context.bot.send_message(
+            sent_message = await context.bot.send_message(
                 chat_id=message.chat_id,
                 text=reply_text,
                 reply_to_message_id=message.message_id,
             )
+            
+            # Store the bot's reply in the database
+            try:
+                bot_info = await context.bot.get_me()
+                self.db_manager.save_message(
+                    chat_id=sent_message.chat_id,
+                    user_id=bot_info.id,
+                    username=bot_info.username,
+                    message_text=reply_text,
+                    image_description=None,
+                    message_id=sent_message.message_id,
+                    has_photo=False,
+                    is_forwarded=False,
+                    forward_from_username=None,
+                    forward_from=None,
+                )
+                logger.debug(f"Saved bot reply message {sent_message.message_id}")
+            except Exception as save_error:
+                logger.error(f"Failed to save bot reply to database: {save_error}")
 
         except Exception as e:
             logger.error(f"Failed to handle bot mention: {e}")
