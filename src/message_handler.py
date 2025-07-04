@@ -252,6 +252,7 @@ class MessageHandler:
                 chat_id=message.chat_id,
                 text=reply_text,
                 reply_to_message_id=message.message_id,
+                parse_mode="HTML",
             )
             
             # Store the bot's reply in the database

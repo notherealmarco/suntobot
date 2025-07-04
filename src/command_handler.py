@@ -50,11 +50,8 @@ class CommandHandler:
                 time_range_desc=time_range_desc,
             )
 
-            # Escape HTML characters in the summary to prevent parsing errors
-            escaped_summary = escape(summary)
-
             await loading_message.edit_text(
-                f"📋 <b>Sunto</b>\n\n{escaped_summary}", parse_mode="HTML"
+                f"📋 <b>Sunto</b>\n\n{summary}", parse_mode="HTML"
             )
 
         except Exception as e:

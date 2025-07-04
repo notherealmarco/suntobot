@@ -52,10 +52,16 @@ Istruzioni:
 - Sii breve e diretto, evitando dettagli non necessari. I punti elenco dovrebbero essere coincisi e facili da leggere
 - Se la history è molto lunga, riassumi i punti principali. Non creare una risposta troppo lunga. Regola il livello di dettagli sulla base delle informazioni da riassumere, in modo da creare mai un messaggio troppo lungo. Tieniti sotto i 600 caratteri se possibile.
 
+Formattazione:
+- Usa HTML per la formattazione: <b>grassetto</b>, <i>corsivo</i>, <code>codice</code>
+- Usa <b>grassetto</b> per evidenziare argomenti importanti o nomi utente
+- Usa <i>corsivo</i> per sottolineare punti chiave
+- Non usare nessun altro tag HTML o caratteri di escape (&lt;, &gt;, &amp;)
+
 Formatta la tua risposta come:
-- Argomento 1: Breve riassunto della discussione
-- Argomento 2: Breve riassunto della discussione
-- Argomento 3: Breve riassunto della discussione
+• <b>Argomento 1</b>: Breve riassunto della discussione
+• <b>Argomento 2</b>: Breve riassunto della discussione
+• <b>Argomento 3</b>: Breve riassunto della discussione
 
 L'utente richiedente è: {username}
         """,
@@ -74,6 +80,12 @@ Istruzioni:
 - Se non hai abbastanza informazioni per rispondere, chiedi chiarimenti
 - Sii conciso ma completo nelle tue risposte
 - Se viene fatto riferimento a messaggi precedenti, utilizzali per fornire un contesto migliore
+
+Formattazione:
+- Usa HTML per la formattazione: <b>grassetto</b>, <i>corsivo</i>, <code>codice</code>
+- Usa <b>grassetto</b> per evidenziare punti importanti
+- Usa <i>corsivo</i> per enfatizzare
+- Non usare nessun altro tag HTML o caratteri di escape (&lt;, &gt;, &amp;)
 
 Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le risposte pertinenti e utili per tutti i partecipanti.
         """,
