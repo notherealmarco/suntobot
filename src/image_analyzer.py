@@ -29,7 +29,7 @@ class ImageAnalyzer:
             )
 
             response = await self.client.chat.completions.create(
-                model="clusterino.gemma3:27b-it-qat",  # Using your multimodal model
+                model=Config.IMAGE_MODEL,  # Using your configurable multimodal model
                 messages=[
                     {
                         "role": "user",

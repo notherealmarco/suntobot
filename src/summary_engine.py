@@ -38,7 +38,7 @@ class SummaryEngine:
 
         try:
             response = await self.client.chat.completions.create(
-                model="clusterino.gemma3:27b-it-qat",
+                model=Config.SUMMARY_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": formatted_messages},
