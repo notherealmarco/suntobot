@@ -1,3 +1,5 @@
+⚠️ SuntoBot is in an early development stage. Expect issues
+
 # SuntoBot - Telegram Chat Summarization Bot
 A Telegram bot that automatically saves chat messages and provides personalized summaries using an LLM when requested by users. The bot operates in groups authorized by admins and stores conversation history in a PostgreSQL database.
 
