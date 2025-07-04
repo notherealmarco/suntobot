@@ -22,4 +22,4 @@ EXPOSE 8000
 
 # Run the bot
 # CMD ["uv", "run", "python", "src/main.py"]
-CMD ["sh", "-c", "uv run alembic upgrade head && uv run python src/main.py"]
+CMD ["sh", "-c", "uv run run_migration.py upgrade head && uv run python src/main.py"]
