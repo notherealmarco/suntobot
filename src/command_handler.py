@@ -99,10 +99,10 @@ class CommandHandler:
             f"🤖 *SuntoBot is active!*\n\n"
             f"I'll automatically save messages in this chat and provide summaries when requested.\n\n"
             f"Commands:\n"
-            f"• `{Config.SUMMARY_COMMAND}` - Get summary since your last message\n"
-            f"• `{Config.SUMMARY_COMMAND} 1h` - Get summary for last hour\n"
-            f"• `{Config.SUMMARY_COMMAND} 30m` - Get summary for last 30 minutes\n"
-            f"• `{Config.SUMMARY_COMMAND} 2d` - Get summary for last 2 days\n\n"
+            f"• `/sunto` - Get summary since your last message\n"
+            f"• `/sunto 1h` - Get summary for last hour\n"
+            f"• `/sunto 30m` - Get summary for last 30 minutes\n"
+            f"• `/sunto 2d` - Get summary for last 2 days\n\n"
             f"Supported time formats: `m` (minutes), `h` (hours), `d` (days)"
         )
 
