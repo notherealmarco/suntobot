@@ -6,7 +6,6 @@ from telegram import Update
 from telegram.constants import MessageOriginType
 from telegram.ext import ContextTypes
 
-from config import Config
 from database import DatabaseManager
 from image_analyzer import ImageAnalyzer
 

@@ -185,7 +185,9 @@ class CommandHandler:
                 await message.reply_text(f"✅ Bot access denied for group {group_id}")
                 logger.info(f"Group {group_id} denied by admin {message.from_user.id}")
             else:
-                await message.reply_text(f"❌ Group {group_id} not found or already denied.")
+                await message.reply_text(
+                    f"❌ Group {group_id} not found or already denied."
+                )
 
         except ValueError:
             await message.reply_text("Invalid group ID. Please provide a valid number.")

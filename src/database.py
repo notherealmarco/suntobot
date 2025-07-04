@@ -138,17 +138,17 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def allow_group(
-        self, chat_id: int, chat_title: str, admin_id: int
-    ) -> None:
+    def allow_group(self, chat_id: int, chat_title: str, admin_id: int) -> None:
         """Allow a group to use the bot."""
         session = self.get_session()
         try:
             # Check if group already exists
-            existing = session.query(AllowedGroup).filter(
-                AllowedGroup.chat_id == chat_id
-            ).first()
-            
+            existing = (
+                session.query(AllowedGroup)
+                .filter(AllowedGroup.chat_id == chat_id)
+                .first()
+            )
+
             if existing:
                 # Reactivate if it was disabled
                 existing.is_active = True
@@ -160,10 +160,10 @@ class DatabaseManager:
                     chat_id=chat_id,
                     chat_title=chat_title,
                     allowed_by_admin_id=admin_id,
-                    is_active=True
+                    is_active=True,
                 )
                 session.add(allowed_group)
-            
+
             session.commit()
         except Exception as e:
             session.rollback()
@@ -175,10 +175,12 @@ class DatabaseManager:
         """Deny a group from using the bot."""
         session = self.get_session()
         try:
-            group = session.query(AllowedGroup).filter(
-                AllowedGroup.chat_id == chat_id
-            ).first()
-            
+            group = (
+                session.query(AllowedGroup)
+                .filter(AllowedGroup.chat_id == chat_id)
+                .first()
+            )
+
             if group:
                 group.is_active = False
                 session.commit()
@@ -194,11 +196,12 @@ class DatabaseManager:
         """Check if a group is allowed to use the bot."""
         session = self.get_session()
         try:
-            group = session.query(AllowedGroup).filter(
-                AllowedGroup.chat_id == chat_id,
-                AllowedGroup.is_active == True
-            ).first()
-            
+            group = (
+                session.query(AllowedGroup)
+                .filter(AllowedGroup.chat_id == chat_id, AllowedGroup.is_active)
+                .first()
+            )
+
             return group is not None
         finally:
             session.close()
@@ -207,10 +210,13 @@ class DatabaseManager:
         """Get all allowed groups."""
         session = self.get_session()
         try:
-            groups = session.query(AllowedGroup).filter(
-                AllowedGroup.is_active == True
-            ).order_by(AllowedGroup.chat_title).all()
-            
+            groups = (
+                session.query(AllowedGroup)
+                .filter(AllowedGroup.is_active)
+                .order_by(AllowedGroup.chat_title)
+                .all()
+            )
+
             return groups
         finally:
             session.close()

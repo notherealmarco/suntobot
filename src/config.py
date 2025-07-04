@@ -26,11 +26,11 @@ class Config:
     # LLM Configuration
     OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    
+
     # Model Configuration
     SUMMARY_MODEL: str = os.getenv("SUMMARY_MODEL", "gemma3:27b-it-qat")
     IMAGE_MODEL: str = os.getenv("IMAGE_MODEL", "gemma3:27b-it-qat")
-    
+
     SYSTEM_PROMPT: str = os.getenv(
         "SYSTEM_PROMPT",
         """Sei un assistente utile che crea riepiloghi personalizzati per le conversazioni di gruppo su Telegram. Il tuo compito è analizzare i messaggi ricevuti e generare un riepilogo conciso in formato elenco puntato.
