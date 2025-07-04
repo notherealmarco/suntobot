@@ -32,7 +32,7 @@ jobs:
 
       - name: Run ruff check
         run: |
-          ruff check .
+          uv run ruff check .
 
 #      # Only trigger the build workflow if this is a push to main branch and all checks pass
 #      - name: Trigger build workflow
