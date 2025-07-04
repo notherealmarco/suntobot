@@ -68,19 +68,32 @@ class SummaryEngine:
         for message in messages:
             username = message.username or f"user_{message.user_id}"
             timestamp = format_timestamp_for_display(message.timestamp)
-
+            
+            # Determine the display format based on content type
+            content_line = ""
             if message.message_text:
-                formatted_lines.append(
-                    f"[{timestamp}] {username}: {message.message_text}"
-                )
+                content_line = message.message_text
             elif message.image_description:
-                formatted_lines.append(
-                    f"[{timestamp}] {username}: [sent an image: {message.image_description}]"
-                )
+                content_line = f"[sent an image: {message.image_description}]"
             elif message.has_photo:
                 # Image was sent but analysis failed or is pending
+                content_line = "[sent an image]"
+            
+            # Format the message with forwarding information if applicable
+            if message.is_forwarded:
+                if message.forward_from == "user" or message.forward_from == "hidden_user":
+                    original_author = message.forward_from_username
+                elif message.forward_from == "channel":
+                    original_author = f"channel {message.forward_from_username}"
+                else:
+                    original_author = "unknown author"
+
                 formatted_lines.append(
-                    f"[{timestamp}] {username}: [sent an image]"
+                    f"[{timestamp}] {username} forwarded from {original_author}: {content_line}"
+                )
+            else:
+                formatted_lines.append(
+                    f"[{timestamp}] {username}: {content_line}"
                 )
 
         return "\n".join(formatted_lines)

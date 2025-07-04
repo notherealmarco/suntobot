@@ -3,6 +3,7 @@ import logging
 from PIL import Image
 from io import BytesIO
 from telegram import Update
+from telegram.constants import MessageOriginType
 from telegram.ext import ContextTypes
 
 from config import Config
@@ -30,12 +31,34 @@ class MessageHandler:
             return
 
         user_id = message.from_user.id
-        username = message.from_user.username
+        username = message.from_user.username or " ".join(filter(None, [
+            message.from_user.first_name, message.from_user.last_name
+        ]))
         chat_id = message.chat_id
         message_id = message.message_id
         message_text = message.text
         image_description = None
         has_photo = False
+        
+        # Check for forwarded message information
+        is_forwarded = False
+        forward_from_username = None
+        forward_from = None
+
+        if message.forward_origin:
+            is_forwarded = True
+            if message.forward_origin.type == MessageOriginType.CHANNEL:
+                forward_from = "channel"
+                forward_from_username = message.forward_origin.chat.title
+            elif message.forward_origin.type == MessageOriginType.USER:
+                forward_from = "user"
+                forward_from_username = message.forward_origin.sender_user.username or " ".join(filter(None, [
+                    message.forward_origin.sender_user.first_name, message.forward_origin.sender_user.last_name
+                ]))
+            elif message.forward_origin.type == MessageOriginType.HIDDEN_USER:
+                forward_from = "hidden_user"
+                forward_from_username = message.forward_origin.sender_user_name
+
 
         # Handle images
         if message.photo:
@@ -57,6 +80,9 @@ class MessageHandler:
                 image_description=image_description,
                 message_id=message_id,
                 has_photo=has_photo,
+                is_forwarded=is_forwarded,
+                forward_from_username=forward_from_username,
+                forward_from=forward_from,
             )
             logger.debug(f"Saved message {message_id} from user {username}")
         except Exception as e:

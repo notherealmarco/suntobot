@@ -32,6 +32,11 @@ class Message(Base):
     timestamp = Column(DateTime, default=func.current_timestamp())
     message_id = Column(BigInteger, unique=True, nullable=False)
 
+    # Forwarded message information
+    is_forwarded = Column(Boolean, default=False)
+    forward_from_username = Column(String(255))  # Original author's username
+    forward_from = Column(String(255)) # Chat type
+
     __table_args__ = (
         Index("idx_messages_chat_user_time", "chat_id", "user_id", "timestamp"),
     )
@@ -57,6 +62,9 @@ class DatabaseManager:
         image_description: Optional[str],
         message_id: int,
         has_photo: bool = False,
+        is_forwarded: bool = False,
+        forward_from_username: Optional[str] = None,
+        forward_from: Optional[str] = None,
     ) -> None:
         session = self.get_session()
         try:
@@ -68,6 +76,9 @@ class DatabaseManager:
                 image_description=image_description,
                 message_id=message_id,
                 has_photo=has_photo,
+                is_forwarded=is_forwarded,
+                forward_from_username=forward_from_username,
+                forward_from=forward_from,
             )
             session.add(message)
             session.commit()
