@@ -47,6 +47,22 @@ class MessageHandler:
         image_description = None
         has_photo = False
 
+        # Handle reply context - format message text to include reply information
+        if message.reply_to_message and message_text:
+            reply_author = (
+                message.reply_to_message.from_user.username 
+                or " ".join(filter(None, [
+                    message.reply_to_message.from_user.first_name, 
+                    message.reply_to_message.from_user.last_name
+                ]))
+            )
+            reply_text = message.reply_to_message.text or ""
+            
+            if reply_text:
+                message_text = f"[Replying to @{reply_author}: '{reply_text}'] {message_text}"
+            else:
+                message_text = f"[Replying to @{reply_author}] {message_text}"
+
         # Check for forwarded message information
         is_forwarded = False
         forward_from_username = None
