@@ -15,14 +15,10 @@ COPY pyproject.toml uv.lock* ./
 RUN pip install uv
 RUN uv sync --frozen
 
-# Copy application code
-COPY demo .
-
-# Create images directory
-RUN mkdir -p /app/images
+COPY src ./src
 
 # Expose port (not needed for bot, but good practice)
 EXPOSE 8000
 
 # Run the bot
-CMD ["uv", "run", "python", "main.py"]
+CMD ["uv", "run", "python", "src/main.py"]
