@@ -279,3 +279,18 @@ class DatabaseManager:
             return sorted(all_messages, key=lambda m: m.timestamp)
         finally:
             session.close()
+
+    def get_last_user_message_time(self, chat_id: int, user_id: int) -> Optional[datetime]:
+        """Get the timestamp of the last message from a specific user in a chat."""
+        session = self.get_session()
+        try:
+            last_message = (
+                session.query(Message)
+                .filter(Message.chat_id == chat_id, Message.user_id == user_id)
+                .order_by(Message.timestamp.desc())
+                .first()
+            )
+            
+            return last_message.timestamp if last_message else None
+        finally:
+            session.close()
