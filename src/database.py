@@ -122,19 +122,42 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def get_last_user_message_time(
-        self, chat_id: int, user_id: int
-    ) -> Optional[datetime]:
+    def get_context_for_mention(
+        self, chat_id: int, limit: int = 30, hours_back: int = 4
+    ) -> List[Message]:
+        """Get recent messages for mention reply context."""
+        from datetime import timedelta
+
         session = self.get_session()
         try:
-            last_message = (
+            # Get messages from the last N hours or last N messages, whichever is smaller
+            cutoff_time = datetime.utcnow() - timedelta(hours=hours_back)
+
+            messages = (
                 session.query(Message)
-                .filter(Message.chat_id == chat_id, Message.user_id == user_id)
+                .filter(
+                    Message.chat_id == chat_id, Message.timestamp >= cutoff_time
+                )
                 .order_by(Message.timestamp.desc())
-                .first()
+                .limit(limit)
+                .all()
             )
 
-            return last_message.timestamp if last_message else None
+            # Return in chronological order (oldest first)
+            return list(reversed(messages))
+        finally:
+            session.close()
+
+    def get_message_by_message_id(self, message_id: int) -> Optional[Message]:
+        """Get a specific message by its Telegram message ID."""
+        session = self.get_session()
+        try:
+            message = (
+                session.query(Message)
+                .filter(Message.message_id == message_id)
+                .first()
+            )
+            return message
         finally:
             session.close()
 

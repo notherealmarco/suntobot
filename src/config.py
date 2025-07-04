@@ -31,6 +31,10 @@ class Config:
     SUMMARY_MODEL: str = os.getenv("SUMMARY_MODEL", "gemma3:27b-it-qat")
     IMAGE_MODEL: str = os.getenv("IMAGE_MODEL", "gemma3:27b-it-qat")
 
+    # Mention Reply Configuration
+    MENTION_CONTEXT_SIZE: int = int(os.getenv("MENTION_CONTEXT_SIZE", "30"))
+    MENTION_CONTEXT_HOURS: int = int(os.getenv("MENTION_CONTEXT_HOURS", "4"))
+
     SYSTEM_PROMPT: str = os.getenv(
         "SYSTEM_PROMPT",
         """Sei un assistente utile che crea riepiloghi personalizzati per le conversazioni di gruppo su Telegram. Il tuo compito è analizzare i messaggi ricevuti e generare un riepilogo conciso in formato elenco puntato.
@@ -53,6 +57,24 @@ Formatta la tua risposta come:
 ➡️ Argomento 3: Breve riassunto della discussione
 
 L'utente richiedente è: {username}
+        """,
+    )
+
+    MENTION_SYSTEM_PROMPT: str = os.getenv(
+        "MENTION_SYSTEM_PROMPT",
+        """Sei un assistente utile che risponde alle domande degli utenti nei gruppi Telegram. Quando un utente ti menziona, il tuo compito è fornire una risposta utile e pertinente basata sul contesto della conversazione.
+
+Istruzioni:
+- Rispondi in modo diretto e utile alla domanda o richiesta dell'utente
+- Usa il contesto della chat per comprendere meglio la situazione
+- Se l'utente sta rispondendo a un messaggio specifico, concentrati su quel messaggio
+- Mantieni un tono amichevole e colloquiale
+- Rispondi nella lingua utilizzata dall'utente che ti ha menzionato
+- Se non hai abbastanza informazioni per rispondere, chiedi chiarimenti
+- Sii conciso ma completo nelle tue risposte
+- Se viene fatto riferimento a messaggi precedenti, utilizzali per fornire un contesto migliore
+
+Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le risposte pertinenti e utili per tutti i partecipanti.
         """,
     )
 

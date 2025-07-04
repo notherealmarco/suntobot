@@ -6,8 +6,10 @@ from telegram import Update
 from telegram.constants import MessageOriginType
 from telegram.ext import ContextTypes
 
+from config import Config
 from database import DatabaseManager
 from image_analyzer import ImageAnalyzer
+from summary_engine import SummaryEngine
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +20,8 @@ class MessageHandler:
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager = db_manager
         self.image_analyzer = ImageAnalyzer()
+        self.summary_engine = SummaryEngine()
+        self.bot_username = None
 
     async def handle_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -26,7 +30,7 @@ class MessageHandler:
         message = update.message
 
         # Only process messages from allowed groups
-        if not self.db_manager.is_group_allowed(message.chat_id):
+        if not message.chat_id or not self.db_manager.is_group_allowed(message.chat_id):
             return
 
         user_id = message.from_user.id
@@ -95,6 +99,9 @@ class MessageHandler:
         except Exception as e:
             logger.error(f"Failed to save message to database: {e}")
 
+        # Check for bot mentions after saving the message
+        await self._handle_bot_mention(message, context)
+
     async def _process_image(self, message, context) -> str:
         """Process image in memory and return description."""
         # Get the largest photo size
@@ -136,3 +143,87 @@ class MessageHandler:
         except Exception as e:
             logger.error(f"Failed to compress image in memory: {e}")
             return None
+
+    async def _handle_bot_mention(self, message, context):
+        """Handle bot mentions in messages."""
+        if not message.text:
+            return
+
+        # Get bot username if we don't have it yet
+        if not self.bot_username:
+            try:
+                bot_info = await context.bot.get_me()
+                self.bot_username = bot_info.username
+            except Exception as e:
+                logger.error(f"Failed to get bot username: {e}")
+                return
+
+        # Check if the bot is mentioned
+        mention_text = f"@{self.bot_username}"
+        if mention_text.lower() not in message.text.lower():
+            return
+
+        logger.info(
+            f"Bot mentioned by {message.from_user.username} in chat {message.chat_id}"
+        )
+
+        try:
+            # Get recent context
+            context_messages = self.db_manager.get_context_for_mention(
+                chat_id=message.chat_id,
+                limit=Config.MENTION_CONTEXT_SIZE,
+                hours_back=Config.MENTION_CONTEXT_HOURS,
+            )
+
+            # Check if this is a reply to another message
+            replied_to_message = None
+            if message.reply_to_message:
+                replied_to_message = self.db_manager.get_message_by_message_id(
+                    message.reply_to_message.message_id
+                )
+
+            # Create a Message object for the current mention
+            mention_message_obj = type(
+                "obj",
+                (object,),
+                {
+                    "message_id": message.message_id,
+                    "user_id": message.from_user.id,
+                    "username": message.from_user.username or " ".join(
+                        filter(None, [message.from_user.first_name, message.from_user.last_name])
+                    ),
+                    "message_text": message.text,
+                    "timestamp": message.date,
+                    "has_photo": bool(message.photo),
+                    "image_description": None,
+                    "is_forwarded": False,
+                    "forward_from_username": None,
+                    "forward_from": None,
+                },
+            )
+
+            # Generate reply
+            reply_text = await self.summary_engine.generate_mention_reply(
+                messages=context_messages,
+                mention_message=mention_message_obj,
+                replied_to_message=replied_to_message,
+            )
+
+            # Send reply
+            await context.bot.send_message(
+                chat_id=message.chat_id,
+                text=reply_text,
+                reply_to_message_id=message.message_id,
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to handle bot mention: {e}")
+            # Send a simple error message
+            try:
+                await context.bot.send_message(
+                    chat_id=message.chat_id,
+                    text="Sorry, I encountered an error while processing your request.",
+                    reply_to_message_id=message.message_id,
+                )
+            except Exception as send_error:
+                logger.error(f"Failed to send error message: {send_error}")
