@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import signal
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -35,6 +36,7 @@ class SuntoBot:
         )
 
         self._register_handlers()
+        self._shutdown_event = asyncio.Event()
 
     def _register_handlers(self):
         self.application.add_handler(
@@ -82,19 +84,44 @@ class SuntoBot:
         logger.info("SuntoBot is running! Press Ctrl+C to stop.")
 
         try:
-            await asyncio.Event().wait()
+            await self._shutdown_event.wait()
+        except asyncio.CancelledError:
+            logger.info("Shutdown event cancelled, proceeding with cleanup...")
         except KeyboardInterrupt:
             logger.info("Received interrupt signal, shutting down...")
         finally:
-            await self.application.updater.stop()
-            await self.application.stop()
-            await self.application.shutdown()
+            logger.info("Stopping bot components...")
+            try:
+                await self.application.updater.stop()
+                await self.application.stop()
+                await self.application.shutdown()
+            except Exception as e:
+                logger.error(f"Error during shutdown: {e}")
+
+    def shutdown(self):
+        """Signal the bot to shutdown."""
+        self._shutdown_event.set()
 
 
 async def main():
+    bot = None
     try:
         bot = SuntoBot()
+
+        # Setup signal handlers for graceful shutdown
+        def signal_handler():
+            logger.info("Received shutdown signal")
+            if bot:
+                bot.shutdown()
+
+        # Register signal handlers
+        if hasattr(signal, "SIGINT"):
+            signal.signal(signal.SIGINT, lambda s, f: signal_handler())
+        if hasattr(signal, "SIGTERM"):
+            signal.signal(signal.SIGTERM, lambda s, f: signal_handler())
+
         await bot.run()
+
     except ValueError as e:
         logger.error(f"Configuration error: {e}")
         return 1
@@ -106,4 +133,13 @@ async def main():
 
 
 if __name__ == "__main__":
-    exit_code = asyncio.run(main())
+    try:
+        exit_code = asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+        exit_code = 0
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        exit_code = 1
+
+    exit(exit_code)
