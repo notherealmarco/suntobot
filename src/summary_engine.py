@@ -76,7 +76,7 @@ class SummaryEngine:
             elif message.image_description:
                 content_line = f"[sent an image: {message.image_description}]"
             elif message.has_photo:
-                # Image was sent but analysis failed or is pending
+                # Image was sent but analysis is pending or disabled
                 content_line = "[sent an image]"
 
             # Format the message with forwarding information if applicable
