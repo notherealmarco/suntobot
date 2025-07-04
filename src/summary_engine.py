@@ -2,6 +2,7 @@
 
 import openai
 import logging
+import re
 from typing import List, Optional
 
 
@@ -10,6 +11,146 @@ from database import Message
 from time_utils import format_timestamp_for_display
 
 logger = logging.getLogger(__name__)
+
+
+def sanitize_html(text: str) -> str:
+    """
+    Sanitize HTML to only allow properly formed Telegram-supported tags.
+
+    Telegram supports these HTML tags:
+    - <b>bold</b>
+    - <i>italic</i>
+    - <u>underline</u>
+    - <s>strikethrough</s>
+    - <code>monospace</code>
+    - <pre>preformatted</pre>
+    - <a href="URL">link</a>
+    
+    This function ensures:
+    - Only allowed tags are kept
+    - All tags are properly matched (opening/closing pairs)
+    - Malformed tags are removed
+    - Nested tags are handled correctly
+    """
+    if not text:
+        return text
+        
+    # Replace <br /> and <br> with newline for better formatting
+    text = text.replace('<br />', '\n').replace('<br>', '\n')
+    
+    # Define allowed tags (excluding self-closing tags like br)
+    allowed_tags = {'b', 'i', 'u', 's', 'code', 'pre', 'a'}
+    
+    # Pattern to match all HTML tags with optional attributes
+    tag_pattern = r'<(/?)([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>'
+    
+    # Find all tags and their positions
+    tags = []
+    for match in re.finditer(tag_pattern, text):
+        is_closing = match.group(1) == '/'
+        tag_name = match.group(2).lower()
+        attributes = match.group(3).strip()
+        full_match = match.group(0)
+        
+        tags.append({
+            'name': tag_name,
+            'is_closing': is_closing,
+            'attributes': attributes,
+            'full_match': full_match,
+            'start': match.start(),
+            'end': match.end(),
+            'allowed': tag_name in allowed_tags
+        })
+    
+    # Build a list of valid tag pairs using a stricter approach
+    valid_tags = []
+    tag_stack = []
+    
+    for tag in tags:
+        if not tag['allowed']:
+            continue
+            
+        if tag['is_closing']:
+            # Find matching opening tag - must be the most recent one of the same type
+            # This ensures proper nesting
+            found_match = False
+            if tag_stack and tag_stack[-1]['name'] == tag['name']:
+                # Found properly nested matching opening tag
+                opening_tag = tag_stack.pop()
+                
+                # Validate and create clean tag pair
+                if tag['name'] == 'a':
+                    # Special handling for anchor tags - validate href
+                    href_match = re.search(r'href\s*=\s*["\']([^"\']*)["\']', opening_tag['attributes'], re.IGNORECASE)
+                    if href_match:
+                        href = href_match.group(1)
+                        # Validate URL
+                        if href.startswith(('http://', 'https://', 'tg://', 'mailto:')):
+                            clean_opening = f'<a href="{href}">'
+                            clean_closing = '</a>'
+                            valid_tags.append((opening_tag, tag, clean_opening, clean_closing))
+                    # If no valid href, don't add the tag pair
+                else:
+                    # For other tags, create clean versions
+                    clean_opening = f'<{tag["name"]}>'
+                    clean_closing = f'</{tag["name"]}>'
+                    valid_tags.append((opening_tag, tag, clean_opening, clean_closing))
+                
+                found_match = True
+            else:
+                # Improperly nested or orphaned closing tag
+                # Clear the stack of any tags that would be improperly nested
+                while tag_stack and tag_stack[-1]['name'] != tag['name']:
+                    tag_stack.pop()
+                
+                # If we found a matching tag after clearing improper nesting
+                if tag_stack and tag_stack[-1]['name'] == tag['name']:
+                    tag_stack.pop()  # Remove the opening tag but don't create a valid pair
+            
+            # Orphaned closing tags are ignored
+        else:
+            # Opening tag - add to stack
+            tag_stack.append(tag)
+    
+    # Any remaining tags in stack are unclosed - ignore them
+    
+    # Sort valid tags by position for replacement
+    valid_tags.sort(key=lambda x: x[0]['start'])
+    
+    # Build the result by replacing tags from right to left to preserve positions
+    result = text
+    for opening_tag, closing_tag, clean_opening, clean_closing in reversed(valid_tags):
+        # Replace closing tag first (rightmost)
+        result = result[:closing_tag['start']] + clean_closing + result[closing_tag['end']:]
+        # Then replace opening tag
+        result = result[:opening_tag['start']] + clean_opening + result[opening_tag['end']:]
+    
+    # Remove any remaining invalid HTML tags that weren't in valid pairs
+    # We need to be careful not to remove the tags we just added
+    all_tags_to_remove = []
+    for tag in tags:
+        # Only remove tags that weren't part of valid pairs
+        tag_was_used = False
+        for opening_tag, closing_tag, _, _ in valid_tags:
+            if (tag['start'] == opening_tag['start'] and tag['end'] == opening_tag['end']) or \
+               (tag['start'] == closing_tag['start'] and tag['end'] == closing_tag['end']):
+                tag_was_used = True
+                break
+        
+        if not tag_was_used:
+            all_tags_to_remove.append((tag['start'], tag['end']))
+    
+    # Remove invalid tags from right to left to preserve positions
+    for start, end in sorted(all_tags_to_remove, reverse=True):
+        result = result[:start] + result[end:]
+    
+    # Clean up HTML entities
+    result = result.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+    
+    # Clean up multiple consecutive newlines and trim
+    result = re.sub(r'\n{3,}', '\n\n', result).strip()
+    
+    return result
 
 
 class SummaryEngine:
@@ -47,7 +188,8 @@ class SummaryEngine:
                 temperature=0.7,
             )
 
-            return response.choices[0].message.content.strip()
+            raw_summary = response.choices[0].message.content.strip()
+            return sanitize_html(raw_summary)
 
         except Exception as e:
             logger.error(f"Failed to generate summary: {e}")
@@ -77,7 +219,8 @@ class SummaryEngine:
                 temperature=0.7,
             )
 
-            return response.choices[0].message.content.strip()
+            raw_reply = response.choices[0].message.content.strip()
+            return sanitize_html(raw_reply)
 
         except Exception as e:
             logger.error(f"Failed to generate mention reply: {e}")
