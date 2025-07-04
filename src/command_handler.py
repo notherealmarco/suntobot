@@ -96,14 +96,14 @@ class CommandHandler:
             return
 
         welcome_text = (
-            f"🤖 *SuntoBot is active!*\n\n"
-            f"I'll automatically save messages in this chat and provide summaries when requested.\n\n"
-            f"Commands:\n"
-            f"• `/sunto` - Get summary since your last message\n"
-            f"• `/sunto 1h` - Get summary for last hour\n"
-            f"• `/sunto 30m` - Get summary for last 30 minutes\n"
-            f"• `/sunto 2d` - Get summary for last 2 days\n\n"
-            f"Supported time formats: `m` (minutes), `h` (hours), `d` (days)"
+            "🤖 *SuntoBot is active!*\n\n"
+            "I'll automatically save messages in this chat and provide summaries when requested.\n\n"
+            "Commands:\n"
+            "• `/sunto` - Get summary since your last message\n"
+            "• `/sunto 1h` - Get summary for last hour\n"
+            "• `/sunto 30m` - Get summary for last 30 minutes\n"
+            "• `/sunto 2d` - Get summary for last 2 days\n\n"
+            "Supported time formats: `m` (minutes), `h` (hours), `d` (days)"
         )
 
         await message.reply_text(welcome_text, parse_mode="Markdown")
