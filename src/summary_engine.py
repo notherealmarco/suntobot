@@ -55,14 +55,15 @@ class SummaryEngine:
 
     async def generate_mention_reply(
         self, messages: List[Message], mention_message: Message, 
-        replied_to_message: Optional[Message] = None
+        replied_to_message: Optional[Message] = None,
+        has_historical_context: bool = False
     ) -> str:
         """Generate a reply to a mention in the chat."""
         if not messages:
             return "I don't have enough context to provide a helpful response."
 
         formatted_context = self._format_messages_for_mention_reply(
-            messages, mention_message, replied_to_message
+            messages, mention_message, replied_to_message, has_historical_context
         )
 
         try:
@@ -130,7 +131,8 @@ class SummaryEngine:
 
     def _format_messages_for_mention_reply(
         self, messages: List[Message], mention_message: Message,
-        replied_to_message: Optional[Message] = None
+        replied_to_message: Optional[Message] = None,
+        has_historical_context: bool = False
     ) -> str:
         """Format messages for mention reply context."""
         formatted_lines = []
@@ -158,7 +160,7 @@ class SummaryEngine:
                 "",
                 f"@{mention_username} says: {mention_message.message_text}",
                 "",
-                "Recent chat context:"
+                "Recent chat context:" if not has_historical_context else "Chat context (includes historical context around the replied message and recent messages):"
             ])
         else:
             # General mention without reply

@@ -5,6 +5,7 @@ from typing import Optional
 
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegram.helpers import escape
 
 from config import Config
 from database import DatabaseManager
@@ -49,8 +50,11 @@ class CommandHandler:
                 time_range_desc=time_range_desc,
             )
 
+            # Escape HTML characters in the summary to prevent parsing errors
+            escaped_summary = escape(summary)
+
             await loading_message.edit_text(
-                f"📋 *Sunto*\n\n{summary}", parse_mode="Markdown"
+                f"📋 <b>Sunto</b>\n\n{escaped_summary}", parse_mode="HTML"
             )
 
         except Exception as e:
@@ -96,17 +100,17 @@ class CommandHandler:
             return
 
         welcome_text = (
-            "🤖 *SuntoBot is active!*\n\n"
+            "🤖 <b>SuntoBot is active!</b>\n\n"
             "I'll automatically save messages in this chat and provide summaries when requested.\n\n"
             "Commands:\n"
-            "• `/sunto` - Get summary since your last message\n"
-            "• `/sunto 1h` - Get summary for last hour\n"
-            "• `/sunto 30m` - Get summary for last 30 minutes\n"
-            "• `/sunto 2d` - Get summary for last 2 days\n\n"
-            "Supported time formats: `m` (minutes), `h` (hours), `d` (days)"
+            "• <code>/sunto</code> - Get summary since your last message\n"
+            "• <code>/sunto 1h</code> - Get summary for last hour\n"
+            "• <code>/sunto 30m</code> - Get summary for last 30 minutes\n"
+            "• <code>/sunto 2d</code> - Get summary for last 2 days\n\n"
+            "Supported time formats: <code>m</code> (minutes), <code>h</code> (hours), <code>d</code> (days)"
         )
 
-        await message.reply_text(welcome_text, parse_mode="Markdown")
+        await message.reply_text(welcome_text, parse_mode="HTML")
 
     async def handle_help_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -218,17 +222,18 @@ class CommandHandler:
                 await message.reply_text("No groups are currently allowed.")
                 return
 
-            response_lines = ["🤖 *Allowed Groups:*\n"]
+            response_lines = ["🤖 <b>Allowed Groups:</b>\n"]
 
             for group in allowed_groups:
+                escaped_title = escape(group.chat_title)
                 response_lines.append(
-                    f"• *{group.chat_title}*\n"
-                    f"  ID: `{group.chat_id}`\n"
+                    f"• <b>{escaped_title}</b>\n"
+                    f"  ID: <code>{group.chat_id}</code>\n"
                     f"  Allowed: {group.allowed_at.strftime('%Y-%m-%d %H:%M')}\n"
                 )
 
             response = "\n".join(response_lines)
-            await message.reply_text(response, parse_mode="Markdown")
+            await message.reply_text(response, parse_mode="HTML")
 
         except Exception as e:
             logger.error(f"Failed to list groups: {e}")

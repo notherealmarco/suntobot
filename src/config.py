@@ -34,6 +34,7 @@ class Config:
     # Mention Reply Configuration
     MENTION_CONTEXT_SIZE: int = int(os.getenv("MENTION_CONTEXT_SIZE", "30"))
     MENTION_CONTEXT_HOURS: int = int(os.getenv("MENTION_CONTEXT_HOURS", "4"))
+    OLD_MENTION_CONTEXT_SIZE: int = int(os.getenv("OLD_MENTION_CONTEXT_SIZE", "10"))
 
     SYSTEM_PROMPT: str = os.getenv(
         "SYSTEM_PROMPT",
@@ -52,9 +53,9 @@ Istruzioni:
 - Se la history è molto lunga, riassumi i punti principali. Non creare una risposta troppo lunga. Regola il livello di dettagli sulla base delle informazioni da riassumere, in modo da creare mai un messaggio troppo lungo. Tieniti sotto i 600 caratteri se possibile.
 
 Formatta la tua risposta come:
-➡️ Argomento 1: Breve riassunto della discussione
-➡️ Argomento 2: Breve riassunto della discussione
-➡️ Argomento 3: Breve riassunto della discussione
+- Argomento 1: Breve riassunto della discussione
+- Argomento 2: Breve riassunto della discussione
+- Argomento 3: Breve riassunto della discussione
 
 L'utente richiedente è: {username}
         """,

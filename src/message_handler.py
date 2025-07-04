@@ -181,10 +181,43 @@ class MessageHandler:
 
             # Check if this is a reply to another message
             replied_to_message = None
+            has_historical_context = False
             if message.reply_to_message:
                 replied_to_message = self.db_manager.get_message_by_message_id(
                     message.reply_to_message.message_id
                 )
+                
+                # If we found the replied-to message and it's not in recent context,
+                # get additional context around that message
+                if replied_to_message:
+                    # Check if the replied-to message is already in recent context
+                    replied_msg_in_context = any(
+                        msg.message_id == replied_to_message.message_id 
+                        for msg in context_messages
+                    )
+                    
+                    if not replied_msg_in_context:
+                        # Get context around the replied-to message
+                        reply_context = self.db_manager.get_context_around_message(
+                            chat_id=message.chat_id,
+                            target_timestamp=replied_to_message.timestamp,
+                            context_limit=Config.OLD_MENTION_CONTEXT_SIZE
+                        )
+                        
+                        if reply_context:  # Only if we actually got historical context
+                            has_historical_context = True
+                            
+                            # Merge contexts, removing duplicates and sorting by timestamp
+                            all_messages = context_messages + reply_context
+                            seen_message_ids = set()
+                            unique_messages = []
+                            for msg in all_messages:
+                                if msg.message_id not in seen_message_ids:
+                                    unique_messages.append(msg)
+                                    seen_message_ids.add(msg.message_id)
+                            
+                            # Sort by timestamp to maintain chronological order
+                            context_messages = sorted(unique_messages, key=lambda m: m.timestamp)
 
             # Create a Message object for the current mention
             mention_message_obj = type(
@@ -211,6 +244,7 @@ class MessageHandler:
                 messages=context_messages,
                 mention_message=mention_message_obj,
                 replied_to_message=replied_to_message,
+                has_historical_context=has_historical_context,
             )
 
             # Send reply

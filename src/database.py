@@ -243,3 +243,39 @@ class DatabaseManager:
             return groups
         finally:
             session.close()
+
+    def get_context_around_message(
+        self, chat_id: int, target_timestamp: datetime, context_limit: int = 10
+    ) -> List[Message]:
+        """Get messages around a specific timestamp for better context."""
+        session = self.get_session()
+        try:
+            # Get messages before the target timestamp
+            messages_before = (
+                session.query(Message)
+                .filter(
+                    Message.chat_id == chat_id,
+                    Message.timestamp < target_timestamp
+                )
+                .order_by(Message.timestamp.desc())
+                .limit(context_limit // 2)
+                .all()
+            )
+
+            # Get messages after the target timestamp  
+            messages_after = (
+                session.query(Message)
+                .filter(
+                    Message.chat_id == chat_id,
+                    Message.timestamp > target_timestamp
+                )
+                .order_by(Message.timestamp.asc())
+                .limit(context_limit // 2)
+                .all()
+            )
+
+            # Combine and sort chronologically
+            all_messages = list(reversed(messages_before)) + messages_after
+            return sorted(all_messages, key=lambda m: m.timestamp)
+        finally:
+            session.close()
