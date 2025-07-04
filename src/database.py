@@ -61,7 +61,8 @@ class AllowedGroup(Base):
 class DatabaseManager:
     def __init__(self, database_url: str):
         self.engine = create_engine(database_url)
-        Base.metadata.create_all(self.engine)
+        # Remove Base.metadata.create_all() - use Alembic migrations instead
+        # Base.metadata.create_all(self.engine)
         self.SessionLocal = sessionmaker(
             autocommit=False, autoflush=False, bind=self.engine
         )

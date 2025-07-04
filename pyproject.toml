@@ -12,6 +12,7 @@ dependencies = [
     "python-dateutil>=2.8.2",
     "pillow>=10.0.0",
     "dotenv>=0.9.9",
+    "alembic>=1.13.0",
 ]
 
 [project.optional-dependencies]
