@@ -37,6 +37,10 @@ def sanitize_html(text: str) -> str:
         
     # Replace <br /> and <br> with newline for better formatting
     text = text.replace('<br />', '\n').replace('<br>', '\n')
+
+    # Decode HTML entities FIRST to prevent creating invalid tags later
+    # This prevents &lt;script&gt; from becoming <script> after tag processing
+    text = text.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
     
     # Define allowed tags (excluding self-closing tags like br)
     allowed_tags = {'b', 'i', 'u', 's', 'code', 'pre', 'a'}
@@ -143,9 +147,6 @@ def sanitize_html(text: str) -> str:
     # Remove invalid tags from right to left to preserve positions
     for start, end in sorted(all_tags_to_remove, reverse=True):
         result = result[:start] + result[end:]
-    
-    # Clean up HTML entities
-    result = result.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
     
     # Clean up multiple consecutive newlines and trim
     result = re.sub(r'\n{3,}', '\n\n', result).strip()

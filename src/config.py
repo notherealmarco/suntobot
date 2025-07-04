@@ -51,12 +51,13 @@ Istruzioni:
 - Ordina i punti elenco in base alla pertinenza per l'utente richiedente, quindi in ordine cronologico
 - Sii breve e diretto, evitando dettagli non necessari. I punti elenco dovrebbero essere coincisi e facili da leggere
 - Se la history è molto lunga, riassumi i punti principali. Non creare una risposta troppo lunga. Regola il livello di dettagli sulla base delle informazioni da riassumere, in modo da creare mai un messaggio troppo lungo. Tieniti sotto i 600 caratteri se possibile.
+- Rispondi in italiano
 
 Formattazione:
 - Usa HTML per la formattazione: <b>grassetto</b>, <i>corsivo</i>, <code>codice</code>
 - Usa <b>grassetto</b> per evidenziare argomenti importanti o nomi utente
 - Usa <i>corsivo</i> per sottolineare punti chiave
-- Non usare nessun altro tag HTML o caratteri di escape (&lt;, &gt;, &amp;)
+- Non usare mai il markdown
 
 Formatta la tua risposta come:
 • <b>Argomento 1</b>: Breve riassunto della discussione
@@ -85,7 +86,7 @@ Formattazione:
 - Usa HTML per la formattazione: <b>grassetto</b>, <i>corsivo</i>, <code>codice</code>
 - Usa <b>grassetto</b> per evidenziare punti importanti
 - Usa <i>corsivo</i> per enfatizzare
-- Non usare nessun altro tag HTML o caratteri di escape (&lt;, &gt;, &amp;)
+- Non usare mai il markdown
 
 Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le risposte pertinenti e utili per tutti i partecipanti.
         """,
