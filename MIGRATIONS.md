@@ -2,14 +2,6 @@
 
 This project uses **Alembic** for database migrations. This ensures that when you modify your database models, the changes are properly applied to the database.
 
-## Why Use Migrations?
-
-The previous code used `Base.metadata.create_all(engine)` which only creates tables that don't exist. It **does NOT**:
-- Add new columns to existing tables
-- Remove columns from existing tables  
-- Change column types or constraints
-- Modify indexes
-
 With Alembic migrations, you can safely evolve your database schema over time.
 
 ## Setup
