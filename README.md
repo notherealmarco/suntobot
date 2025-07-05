@@ -308,11 +308,6 @@ docker-compose down -v
 docker-compose up -d
 ```
 
-### Data Persistence
-- Database data is stored in `./suntobot_db/` directory
-- This directory persists between container restarts
-- Backup this directory to preserve your chat history
-
 ### Updating SuntoBot
 ```bash
 # Pull latest image
@@ -320,9 +315,6 @@ docker-compose pull bot
 
 # Restart with new version
 docker-compose up -d bot
-
-# Check if update was successful
-docker-compose logs bot
 ```
 
 ## License
