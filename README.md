@@ -45,8 +45,18 @@ OPENAI_API_KEY=your_openai_api_key_here
 # Optional: Use different OpenAI-compatible API
 OPENAI_BASE_URL=https://api.openai.com/v1
 
-# Optional: Change the model (default works with OpenAI)
-# SUMMARY_MODEL=gpt-4o-mini
+# Optional: Change the models (defaults work with OpenAI)
+SUMMARY_MODEL=gpt-4o-mini
+IMAGE_MODEL=gpt-4o-mini
+
+# Optional: Mention behavior configuration
+MENTION_CONTEXT_SIZE=30
+MENTION_CONTEXT_HOURS=4
+OLD_MENTION_CONTEXT_SIZE=10
+
+# Optional: Custom system prompts (uncomment to use)
+# SYSTEM_PROMPT="Your custom summary prompt..."
+# MENTION_SYSTEM_PROMPT="Your custom mention reply prompt..."
 ```
 
 4. **Start the bot with Docker Compose:**
@@ -108,15 +118,20 @@ uv run python src/main.py
 ### Environment Variables
 All configuration is done through environment variables in the `.env` file:
 
-| Variable             | Description                        | Required | Default                   | Example                              |
-| -------------------- | ---------------------------------- | -------- | ------------------------- | ------------------------------------ |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token from @BotFather | **Yes**  | -                         | `1234567890:ABCdefGHIjklMNOpqrSTUvwx` |
-| `ADMIN_IDS`          | Comma-separated admin user IDs     | **Yes**  | -                         | `"123456789,987654321"`              |
-| `DATABASE_URL`       | PostgreSQL connection string       | **Yes**  | -                         | `postgresql://user:pass@host:5432/db` |
-| `OPENAI_API_KEY`     | OpenAI API key                     | **Yes**  | -                         | `sk-...`                            |
-| `OPENAI_BASE_URL`    | OpenAI API base URL                | No       | `https://api.openai.com/v1` | `http://localhost:11434/v1`         |
-| `SUMMARY_MODEL`      | Model name for summaries           | No       | `gpt-4o-mini`             | `gemma2:27b`, `claude-3-sonnet`     |
-| `SYSTEM_PROMPT`      | Custom system prompt for LLM       | No       | Built-in prompt           | `"You are a helpful assistant..."`   |
+| Variable                  | Description                        | Required | Default                   | Example                              |
+| ------------------------- | ---------------------------------- | -------- | ------------------------- | ------------------------------------ |
+| `TELEGRAM_BOT_TOKEN`      | Telegram bot token from @BotFather | **Yes**  | -                         | `1234567890:ABCdefGHIjklMNOpqrSTUvwx` |
+| `ADMIN_IDS`               | Comma-separated admin user IDs     | **Yes**  | -                         | `"123456789,987654321"`              |
+| `DATABASE_URL`            | PostgreSQL connection string       | **Yes**  | -                         | `postgresql://user:pass@host:5432/db` |
+| `OPENAI_API_KEY`          | OpenAI API key                     | **Yes**  | -                         | `sk-...`                            |
+| `OPENAI_BASE_URL`         | OpenAI API base URL                | No       | `https://api.openai.com/v1` | `http://localhost:11434/v1`         |
+| `SUMMARY_MODEL`           | Model name for summaries           | No       | `gpt-4o-mini`             | `gemma2:27b`, `claude-3-sonnet`     |
+| `IMAGE_MODEL`             | Model name for image analysis      | No       | `gpt-4o-mini`             | `gpt-4o`, `claude-3-sonnet`         |
+| `MENTION_CONTEXT_SIZE`    | Messages to include when mentioned | No       | `30`                      | `50`, `20`                          |
+| `MENTION_CONTEXT_HOURS`   | Hours to look back for context     | No       | `4`                       | `6`, `2`                            |
+| `OLD_MENTION_CONTEXT_SIZE`| Older messages for context         | No       | `10`                      | `15`, `5`                           |
+| `SYSTEM_PROMPT`           | Custom system prompt for summaries | No       | Built-in Italian prompt   | See placeholders section below      |
+| `MENTION_SYSTEM_PROMPT`   | Custom prompt for mention replies  | No       | Built-in Italian prompt   | `"You are a helpful assistant..."`   |
 
 ### Getting Required Values
 
@@ -144,6 +159,7 @@ SuntoBot supports any OpenAI-compatible API. Examples:
 OPENAI_BASE_URL=http://localhost:11434/v1
 OPENAI_API_KEY=ollama  # Can be anything for local Ollama
 SUMMARY_MODEL=gemma2:27b
+IMAGE_MODEL=gemma2:27b
 ```
 
 #### Anthropic Claude (via proxy)
@@ -152,7 +168,46 @@ SUMMARY_MODEL=gemma2:27b
 OPENAI_BASE_URL=https://your-claude-proxy.com/v1
 OPENAI_API_KEY=your_anthropic_api_key
 SUMMARY_MODEL=claude-3-sonnet-20240229
+IMAGE_MODEL=claude-3-sonnet-20240229
 ```
+
+### Advanced Configuration
+
+#### Mention Behavior Settings
+When users mention the bot in a group, these parameters control how the bot responds:
+
+- **`MENTION_CONTEXT_SIZE`**: Number of recent messages to consider (default: 30)
+- **`MENTION_CONTEXT_HOURS`**: Hours of chat history to look back (default: 4)  
+- **`OLD_MENTION_CONTEXT_SIZE`**: Additional older messages for context (default: 10)
+
+Example: If a user mentions the bot, it will analyze the last 30 messages within 4 hours, plus 10 older messages for additional context.
+
+#### Model Configuration
+- **`SUMMARY_MODEL`**: Model used for generating chat summaries
+- **`IMAGE_MODEL`**: Model used for analyzing images in chat (must support vision)
+
+#### Custom System Prompts
+You can customize how the bot behaves by setting custom system prompts:
+
+- **`SYSTEM_PROMPT`**: Controls how summaries are generated (default is in Italian)
+- **`MENTION_SYSTEM_PROMPT`**: Controls how the bot responds to mentions (default is in Italian)
+
+**Note**: The default prompts are in Italian. If you want English responses, you'll need to set custom prompts.
+
+##### System Prompt Placeholders
+The `SYSTEM_PROMPT` supports the following placeholders that are automatically replaced:
+
+- **`{username}`**: The Telegram username of the user requesting the summary
+- **`{time_range}`**: A description of the time period being summarized (e.g., "last 2 hours", "since your last message")
+
+Example custom system prompt:
+```bash
+SYSTEM_PROMPT="You are a helpful assistant that creates summaries for {username}. 
+Analyze the messages from {time_range} and provide a concise summary.
+Focus on topics that mention or involve {username} directly."
+```
+
+The `MENTION_SYSTEM_PROMPT` does not use any placeholders and receives the conversation context directly.
 
 ## Usage
 
