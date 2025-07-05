@@ -28,8 +28,8 @@ class Config:
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
     # Model Configuration
-    SUMMARY_MODEL: str = os.getenv("SUMMARY_MODEL", "gemma3:27b-it-qat")
-    IMAGE_MODEL: str = os.getenv("IMAGE_MODEL", "gemma3:27b-it-qat")
+    SUMMARY_MODEL: str = os.getenv("SUMMARY_MODEL", "gpt-4o-mini")
+    IMAGE_MODEL: str = os.getenv("IMAGE_MODEL", "gpt-4o-mini")
 
     # Mention Reply Configuration
     MENTION_CONTEXT_SIZE: int = int(os.getenv("MENTION_CONTEXT_SIZE", "30"))
