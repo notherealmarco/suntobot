@@ -3,13 +3,12 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import telegram
 from telegram import Update
 from telegram.ext import ContextTypes
-from telegram.helpers import escape
-
 from config import Config
 from database import DatabaseManager
-from summary_engine import SummaryEngine
+from summary_engine import SummaryEngine, strip_html_tags
 from time_utils import get_time_range_description, parse_time_interval
 
 logger = logging.getLogger(__name__)
@@ -50,9 +49,17 @@ class CommandHandler:
                 time_range_desc=time_range_desc,
             )
 
-            await loading_message.edit_text(
-                f"📋 <b>Sunto</b>\n\n{summary}", parse_mode="HTML"
-            )
+            try:
+                await loading_message.edit_text(
+                    f"📋 <b>Sunto</b>\n\n{summary}", parse_mode="HTML"
+                )
+            except telegram.error.BadRequest:
+                logger.warning(
+                    "Failed to parse HTML in summary, using plain text: %s", summary
+                )
+                await loading_message.edit_text(
+                    f"📋 Sunto\n\n{strip_html_tags(summary)}"
+                )
 
         except Exception as e:
             logger.error(f"Failed to generate summary: {e}")
@@ -222,7 +229,7 @@ class CommandHandler:
             response_lines = ["🤖 <b>Allowed Groups:</b>\n"]
 
             for group in allowed_groups:
-                escaped_title = escape(group.chat_title)
+                escaped_title = telegram.helpers.escape(group.chat_title)
                 response_lines.append(
                     f"• <b>{escaped_title}</b>\n"
                     f"  ID: <code>{group.chat_id}</code>\n"

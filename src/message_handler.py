@@ -1,5 +1,6 @@
 import logging
 
+import telegram
 from PIL import Image
 from io import BytesIO
 from telegram import Update
@@ -9,7 +10,7 @@ from telegram.ext import ContextTypes
 from config import Config
 from database import DatabaseManager
 from image_analyzer import ImageAnalyzer
-from summary_engine import SummaryEngine
+from summary_engine import SummaryEngine, strip_html_tags
 
 logger = logging.getLogger(__name__)
 
@@ -274,12 +275,23 @@ class MessageHandler:
             )
 
             # Send reply
-            sent_message = await context.bot.send_message(
-                chat_id=message.chat_id,
-                text=reply_text,
-                reply_to_message_id=message.message_id,
-                parse_mode="HTML",
-            )
+            try:
+                sent_message = await context.bot.send_message(
+                    chat_id=message.chat_id,
+                    text=reply_text,
+                    reply_to_message_id=message.message_id,
+                    parse_mode="HTML",
+                )
+            except telegram.error.BadRequest:
+                logger.warning(
+                    "Failed to parse HTML in bot reply, sending plain text instead. %s",
+                    reply_text,
+                )
+                sent_message = await context.bot.send_message(
+                    chat_id=message.chat_id,
+                    text=strip_html_tags(reply_text),
+                    reply_to_message_id=message.message_id,
+                )
 
             # Store the bot's reply in the database
             try:

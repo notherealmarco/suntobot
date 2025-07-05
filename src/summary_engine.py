@@ -9,8 +9,22 @@ from typing import List, Optional
 from config import Config
 from database import Message
 from time_utils import format_timestamp_for_display
+import markdown
 
 logger = logging.getLogger(__name__)
+
+
+def strip_html_tags(text: str) -> str:
+    """
+    Strip all HTML tags from the input text.
+
+    This function uses a regular expression to remove all HTML tags,
+    leaving only the raw text content.
+    """
+    if not text:
+        return text
+    # Use regex to remove all HTML tags
+    return re.sub(r"<[^>]+>", "", text).strip()
 
 
 def sanitize_html(text: str) -> str:
@@ -35,12 +49,23 @@ def sanitize_html(text: str) -> str:
     if not text:
         return text
 
+    text = markdown.markdown(text)
     # Replace <br /> and <br> with newline for better formatting
-    text = text.replace("<br />", "\n").replace("<br>", "\n")
+    text = (
+        text.replace("<br />", "\n")
+        .replace("<br>", "\n")
+        .replace("<strong>", "<b>")
+        .replace("</strong>", "</b>")
+        .replace("<em>", "<i>")
+        .replace("</em>", "</i>")
+    )
 
     # Decode HTML entities FIRST to prevent creating invalid tags later
     # This prevents &lt;script&gt; from becoming <script> after tag processing
     text = text.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+
+    text = text.replace("<ul>", "").replace("</ul>", "")
+    text = text.replace("<li>", "🔸 ").replace("</li>", "\n\n")
 
     # Define allowed tags (excluding self-closing tags like br)
     allowed_tags = {"b", "i", "u", "s", "code", "pre", "a"}
@@ -191,11 +216,9 @@ class SummaryEngine:
             messages, requesting_username, time_range_desc
         )
 
-        system_prompt = (
-            f"{Config.SYSTEM_PROMPT}\n\n"
-            f"The requesting user is: {requesting_username}\n"
-            f"Time period: {time_range_desc}"
-        )
+        system_prompt = Config.SYSTEM_PROMPT.replace(
+            "{username}", requesting_username
+        ).replace("{time_range}", time_range_desc)
 
         try:
             response = await self.client.chat.completions.create(
@@ -204,8 +227,8 @@ class SummaryEngine:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": formatted_messages},
                 ],
-                max_tokens=500,
-                temperature=0.7,
+                # max_tokens=500,
+                # temperature=0.7,
             )
 
             raw_summary = response.choices[0].message.content.strip()
@@ -237,8 +260,8 @@ class SummaryEngine:
                     {"role": "system", "content": Config.MENTION_SYSTEM_PROMPT},
                     {"role": "user", "content": formatted_context},
                 ],
-                max_tokens=500,
-                temperature=0.7,
+                # max_tokens=500,
+                # temperature=0.7,
             )
 
             raw_reply = response.choices[0].message.content.strip()
