@@ -10,6 +10,7 @@ A Telegram bot that automatically saves chat messages and provides personalized 
 - **Personalized Summaries**: Generate summaries tailored to the requesting user
 - **Flexible Time Ranges**: Support custom intervals (10m, 1h, 24h, 10d)
 - **LLM Integration**: Uses OpenAI API with configurable base URL
+  - We recommend running a local Ollama server for LLM processing, using `gemma3`.
 
 ## Quick Start
 
