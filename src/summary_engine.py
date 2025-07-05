@@ -58,6 +58,8 @@ def sanitize_html(text: str) -> str:
         .replace("</strong>", "</b>")
         .replace("<em>", "<i>")
         .replace("</em>", "</i>")
+        .replace("</end_of_turn>", "")
+        .replace("</start_of_turn>", "")
     )
 
     # Decode HTML entities FIRST to prevent creating invalid tags later
