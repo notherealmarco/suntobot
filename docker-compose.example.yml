@@ -1,0 +1,12 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: suntobot
+      POSTGRES_PASSWORD: suntopassword
+      POSTGRES_DB: suntobot
+    volumes:
+      - ./suntobot_db:/var/lib/postgresql/data
+  bot:
+    image: git.marcorealacci.me/marcorealacci/suntobot:latest
+    env_file: .env
