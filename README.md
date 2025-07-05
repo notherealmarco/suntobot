@@ -12,87 +12,262 @@ A Telegram bot that automatically saves chat messages and provides personalized 
 - **LLM Integration**: Uses OpenAI API with configurable base URL
 
 ## Quick Start
-### Prerequisites
-- Python 3.13+
-- PostgreSQL database
-- Telegram Bot Token (from @BotFather)
-- OpenAI API key
 
-### Installation
-1. Clone the repository:
+### Option 1: Docker Setup (Recommended)
+The easiest way to get started is using Docker Compose with the included PostgreSQL database.
+
+1. **Clone the repository:**
 ```bash
 git clone <repository-url>
 cd suntobot
 ```
 
-2. Install dependencies using uv:
+2. **Set up environment variables:**
+```bash
+cp .env.example .env
+```
+
+3. **Edit the `.env` file** with your configuration:
+```bash
+# Required: Get your bot token from @BotFather on Telegram
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+
+# Required: Your Telegram user ID (get from @userinfobot)
+ADMIN_IDS="123456789"
+
+# Database (use this for Docker setup)
+DATABASE_URL=postgresql://suntobot:suntopassword@db:5432/suntobot
+
+# Required: OpenAI API key
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Optional: Use different OpenAI-compatible API
+OPENAI_BASE_URL=https://api.openai.com/v1
+
+# Optional: Change the model (default works with OpenAI)
+# SUMMARY_MODEL=gpt-4o-mini
+```
+
+4. **Start the bot with Docker Compose:**
+```bash
+# Copy the example docker-compose file
+cp docker-compose.example.yml docker-compose.yml
+
+# Start the bot and database
+docker-compose up -d
+
+# Check logs
+docker-compose logs -f bot
+```
+
+### Option 2: Local Development Setup
+For development or if you prefer running locally:
+
+#### Prerequisites
+- Python 3.13+
+- PostgreSQL database
+- Telegram Bot Token (from @BotFather)
+- OpenAI API key
+
+#### Installation
+1. **Clone and setup:**
+```bash
+git clone <repository-url>
+cd suntobot
+```
+
+2. **Install dependencies using uv:**
 ```bash
 uv sync
 ```
 
-3. Set up environment variables:
+3. **Set up environment variables:**
 ```bash
 cp .env.example .env
 # Edit .env with your configuration
 ```
 
-4. Set up PostgreSQL database and update DATABASE_URL in .env
+4. **Set up PostgreSQL database:**
+   - Create a PostgreSQL database
+   - Update `DATABASE_URL` in `.env` with your database connection string
+   - Example: `postgresql://username:password@localhost:5432/suntobot`
 
-5. Run the bot:
+5. **Run database migrations:**
 ```bash
-uv run python main.py
+uv run python run_migration.py
 ```
 
-### Docker Setup
-For a complete setup with PostgreSQL:
-
-1. Copy environment variables:
+6. **Run the bot:**
 ```bash
-cp .env.example demo/.env
-# Edit demo/.env with your configuration
-```
-
-2. Run with Docker Compose:
-```bash
-cd demo
-docker-compose up -d
+uv run python src/main.py
 ```
 
 ## Configuration
+
 ### Environment Variables
-| Variable             | Description                        | Required | Default                   |
-| -------------------- | ---------------------------------- | -------- | ------------------------- |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token from @BotFather | Yes      | -                         |
-| `ADMIN_IDS`          | Comma-separated admin user IDs     | Yes      | -                         |
-| `DATABASE_URL`       | PostgreSQL connection string       | Yes      | -                         |
-| `OPENAI_API_KEY`     | OpenAI API key                     | Yes      | -                         |
-| `OPENAI_BASE_URL`    | OpenAI API base URL                | No       | https://api.openai.com/v1 |
+All configuration is done through environment variables in the `.env` file:
+
+| Variable             | Description                        | Required | Default                   | Example                              |
+| -------------------- | ---------------------------------- | -------- | ------------------------- | ------------------------------------ |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token from @BotFather | **Yes**  | -                         | `1234567890:ABCdefGHIjklMNOpqrSTUvwx` |
+| `ADMIN_IDS`          | Comma-separated admin user IDs     | **Yes**  | -                         | `"123456789,987654321"`              |
+| `DATABASE_URL`       | PostgreSQL connection string       | **Yes**  | -                         | `postgresql://user:pass@host:5432/db` |
+| `OPENAI_API_KEY`     | OpenAI API key                     | **Yes**  | -                         | `sk-...`                            |
+| `OPENAI_BASE_URL`    | OpenAI API base URL                | No       | `https://api.openai.com/v1` | `http://localhost:11434/v1`         |
+| `SUMMARY_MODEL`      | Model name for summaries           | No       | `gpt-4o-mini`             | `gemma2:27b`, `claude-3-sonnet`     |
+| `SYSTEM_PROMPT`      | Custom system prompt for LLM       | No       | Built-in prompt           | `"You are a helpful assistant..."`   |
+
+### Getting Required Values
+
+#### 1. Telegram Bot Token
+1. Message @BotFather on Telegram
+2. Use `/newbot` command and follow instructions
+3. Copy the token provided
+
+#### 2. Admin User IDs
+1. Message @userinfobot on Telegram
+2. Copy your user ID from the response
+3. For multiple admins, separate IDs with commas: `"123456789,987654321"`
+
+#### 3. OpenAI API Key
+1. Go to https://platform.openai.com/api-keys
+2. Create a new API key
+3. Copy the key (starts with `sk-`)
+
+### Using Alternative LLM Providers
+SuntoBot supports any OpenAI-compatible API. Examples:
+
+#### Local Ollama
+```bash
+# In .env
+OPENAI_BASE_URL=http://localhost:11434/v1
+OPENAI_API_KEY=ollama  # Can be anything for local Ollama
+SUMMARY_MODEL=gemma2:27b
+```
+
+#### Anthropic Claude (via proxy)
+```bash
+# In .env
+OPENAI_BASE_URL=https://your-claude-proxy.com/v1
+OPENAI_API_KEY=your_anthropic_api_key
+SUMMARY_MODEL=claude-3-sonnet-20240229
+```
 
 ## Usage
+
+### Setting Up Your Bot
+
+#### Step 1: Add Bot to Group
+1. Invite your bot to a Telegram group
+2. Make sure the bot has permission to read messages
+
+#### Step 2: Allow the Group
+An admin must run the `/allow` command in the group:
+```
+/allow
+```
+The bot will respond confirming the group is now allowed.
+
+#### Step 3: Start Using Summary Commands
+Once allowed, any group member can request summaries:
+```
+/sunto          # Summary since your last message
+/sunto 1h       # Summary for last hour
+/sunto 30m      # Summary for last 30 minutes
+/sunto 2d       # Summary for last 2 days
+```
+
 ### Bot Commands
 
 #### User Commands (in allowed groups):
 - `/start` - Show welcome message and help
-- `/help` - Show help information
+- `/help` - Show help information  
 - `/sunto` - Get summary since your last message
-- `/sunto 1h` - Get summary for last hour
-- `/sunto 30m` - Get summary for last 30 minutes
-- `/sunto 2d` - Get summary for last 2 days
+- `/sunto <time>` - Get summary for specified time period
 
 #### Admin Commands:
 - `/allow` - Allow the current group to use the bot (use in group)
-- `/deny <group_id>` - Deny a group from using the bot (use in private chat)
-- `/list` - List all allowed groups with IDs (use in private chat)
+- `/deny <group_id>` - Deny a group from using the bot (use in private chat with bot)
+- `/list` - List all allowed groups with IDs (use in private chat with bot)
 
-### Group Management
-1. **Add bot to group**: Invite the bot to your Telegram group
-2. **Allow group**: An admin uses `/allow` command in the group
-3. **Manage groups**: Admins can use `/list` and `/deny` commands in private chat
+### Advanced Usage
 
-### Supported Time Formats
-- `m` - minutes (e.g., `30m`)
-- `h` - hours (e.g., `2h`)
-- `d` - days (e.g., `7d`)
+#### Custom Time Formats
+- `m` - minutes (e.g., `30m`, `45m`)
+- `h` - hours (e.g., `2h`, `12h`) 
+- `d` - days (e.g., `7d`, `30d`)
+
+#### Managing Multiple Groups
+Admins can manage multiple groups from a private chat with the bot:
+1. Get group IDs using `/list` command
+2. Deny groups using `/deny <group_id>`
+3. Allow new groups by using `/allow` in the target group
+
+### Troubleshooting
+
+#### Bot Not Responding
+1. Check bot logs: `docker-compose logs bot`
+2. Verify the bot token in `.env`
+3. Ensure the bot has message reading permissions in the group
+
+#### Database Issues
+1. Check database logs: `docker-compose logs db`
+2. Verify `DATABASE_URL` is correct in `.env`
+3. Try restarting: `docker-compose restart`
+
+#### Summary Generation Issues
+1. Check your OpenAI API key and usage limits
+2. Verify `OPENAI_BASE_URL` if using alternative providers
+3. Check logs for specific error messages
+
+#### Group Not Allowed
+1. Ensure an admin has run `/allow` in the group
+2. Check allowed groups with `/list` in private chat
+3. Verify your user ID is in `ADMIN_IDS`
+
+## Docker Management
+
+### Common Docker Commands
+```bash
+# Start the bot
+docker-compose up -d
+
+# Stop the bot
+docker-compose down
+
+# Restart the bot
+docker-compose restart
+
+# View logs
+docker-compose logs -f bot        # Bot logs
+docker-compose logs -f db         # Database logs  
+docker-compose logs -f            # All logs
+
+# Update to latest version
+docker-compose pull
+docker-compose up -d
+
+# Reset database (⚠️ deletes all data)
+docker-compose down -v
+docker-compose up -d
+```
+
+### Data Persistence
+- Database data is stored in `./suntobot_db/` directory
+- This directory persists between container restarts
+- Backup this directory to preserve your chat history
+
+### Updating SuntoBot
+```bash
+# Pull latest image
+docker-compose pull bot
+
+# Restart with new version
+docker-compose up -d bot
+
+# Check if update was successful
+docker-compose logs bot
+```
 
 ## License
 
