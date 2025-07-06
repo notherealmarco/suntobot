@@ -3,13 +3,15 @@
 import openai
 import logging
 import re
-from typing import List, Optional
-
+import math
+from typing import List, Optional, Tuple
+from datetime import timedelta
 
 from config import Config
 from database import Message
 from time_utils import format_timestamp_for_display
 import markdown
+
 
 logger = logging.getLogger(__name__)
 
@@ -206,18 +208,227 @@ class SummaryEngine:
             api_key=Config.OPENAI_API_KEY, base_url=Config.OPENAI_BASE_URL
         )
 
-    async def generate_summary(
-        self, messages: List[Message], requesting_username: str, time_range_desc: str
-    ) -> str:
-        if not messages:
-            return (
-                f"No messages found in the specified time period ({time_range_desc})."
-            )
+    def _estimate_tokens(self, text: str) -> int:
+        """Rough estimation of token count based on character count."""
+        return len(text) // Config.CHARS_PER_TOKEN
 
-        formatted_messages = self._format_messages_for_llm(
-            messages, requesting_username, time_range_desc
+    def _chunk_messages(self, messages: List[Message], chunk_size: int, overlap: int) -> List[List[Message]]:
+        """
+        Split messages into overlapping chunks to preserve conversation continuity.
+        
+        Args:
+            messages: List of messages to chunk
+            chunk_size: Target number of messages per chunk
+            overlap: Number of messages to overlap between chunks
+            
+        Returns:
+            List of message chunks with overlap
+        """
+        if len(messages) <= chunk_size:
+            return [messages]
+        
+        chunks = []
+        start = 0
+        
+        while start < len(messages):
+            end = min(start + chunk_size, len(messages))
+            chunk = messages[start:end]
+            chunks.append(chunk)
+            
+            # If this is the last chunk, break
+            if end >= len(messages):
+                break
+                
+            # Move start position with overlap consideration
+            start = end - overlap
+            
+        return chunks
+
+    async def _summarize_chunk(self, messages: List[Message], chunk_index: int, total_chunks: int) -> str:
+        """
+        Summarize a single chunk of messages.
+        
+        Args:
+            messages: Messages to summarize
+            chunk_index: Index of current chunk (0-based)
+            total_chunks: Total number of chunks
+            
+        Returns:
+            Summary of the chunk
+        """
+        if not messages:
+            return ""
+            
+        # Create a focused system prompt for chunk summarization
+        chunk_prompt = Config.CHUNK_SYSTEM_PROMPT.format(
+            chunk_index=chunk_index + 1,
+            total_chunks=total_chunks
         )
 
+        formatted_messages = self._format_messages_for_chunk(messages, chunk_index, total_chunks)
+        
+        try:
+            response = await self.client.chat.completions.create(
+                model=Config.SUMMARY_MODEL,
+                messages=[
+                    {"role": "system", "content": chunk_prompt},
+                    {"role": "user", "content": formatted_messages},
+                ],
+                max_tokens=400,  # Limit chunk summaries to keep them concise
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            logger.error(f"Failed to summarize chunk {chunk_index}: {e}")
+            return f"[Error summarizing chunk {chunk_index + 1}]"
+
+    def _format_messages_for_chunk(self, messages: List[Message], chunk_index: int, total_chunks: int) -> str:
+        """Format messages for chunk summarization."""
+        if not messages:
+            return ""
+            
+        start_time = format_timestamp_for_display(messages[0].timestamp)
+        end_time = format_timestamp_for_display(messages[-1].timestamp)
+        
+        formatted_lines = [
+            f"Chat Chunk {chunk_index + 1} of {total_chunks}",
+            f"Time Range: {start_time} to {end_time}",
+            f"Messages in chunk: {len(messages)}",
+            "",
+            "Messages:",
+        ]
+
+        for message in messages:
+            username = message.username or f"user_{message.user_id}"
+            timestamp = format_timestamp_for_display(message.timestamp)
+
+            content_line = ""
+            if message.message_text:
+                content_line = message.message_text
+            elif message.image_description:
+                content_line = f"[sent an image: {message.image_description}]"
+            elif message.has_photo:
+                content_line = "[sent an image]"
+
+            if message.is_forwarded:
+                if message.forward_from == "user" or message.forward_from == "hidden_user":
+                    original_author = message.forward_from_username
+                elif message.forward_from == "channel":
+                    original_author = f"channel {message.forward_from_username}"
+                else:
+                    original_author = "unknown author"
+
+                formatted_lines.append(
+                    f"[{timestamp}] {username} forwarded from {original_author}: {content_line}"
+                )
+            else:
+                formatted_lines.append(f"[{timestamp}] {username}: {content_line}")
+
+        return "\n".join(formatted_lines)
+
+    async def _create_meta_summary(self, chunk_summaries: List[str], requesting_username: str, time_range_desc: str, total_messages: int) -> str:
+        """
+        Create a final meta-summary from chunk summaries.
+        
+        Args:
+            chunk_summaries: List of individual chunk summaries
+            requesting_username: User requesting the summary
+            time_range_desc: Description of the time range
+            total_messages: Total number of messages processed
+            
+        Returns:
+            Final comprehensive summary
+        """
+        if not chunk_summaries:
+            return f"No content to summarize for {time_range_desc}."
+            
+        # Filter out empty summaries
+        valid_summaries = [s for s in chunk_summaries if s.strip() and not s.startswith("[Error")]
+        
+        if not valid_summaries:
+            return f"Unable to generate summary for {time_range_desc} due to processing errors."
+            
+        meta_prompt = Config.SYSTEM_PROMPT.replace(
+            "{username}", requesting_username
+        ).replace("{time_range}", time_range_desc) + Config.META_SUMMARY_PROMPT_SUFFIX.format(
+            num_chunks=len(valid_summaries),
+            username=requesting_username
+        )
+
+        chunks_text = "\n\n".join([f"Part {i+1}: {summary}" for i, summary in enumerate(valid_summaries)])
+        
+        formatted_input = f"""Summary Request for @{requesting_username}
+Time Period: {time_range_desc}
+Total Messages Processed: {total_messages}
+Number of Summary Parts: {len(valid_summaries)}
+
+Partial Summaries to Combine:
+{chunks_text}
+
+Please create a final comprehensive summary that combines all parts."""
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=Config.SUMMARY_MODEL,
+                messages=[
+                    {"role": "system", "content": meta_prompt},
+                    {"role": "user", "content": formatted_input},
+                ],
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            logger.error(f"Failed to create meta-summary: {e}")
+            # Fallback: return combined summaries with basic formatting
+            return f"Summary for {time_range_desc}:\n\n" + "\n\n".join([f"• {s}" for s in valid_summaries])
+
+    async def generate_smart_summary(
+        self, messages: List[Message], requesting_username: str, time_range_desc: str
+    ) -> str:
+        """
+        Generate summary using Smart Hybrid approach based on message volume.
+        
+        Args:
+            messages: List of messages to summarize
+            requesting_username: User requesting the summary
+            time_range_desc: Description of the time range
+            
+        Returns:
+            Generated summary
+        """
+        if not messages:
+            return f"No messages found in the specified time period ({time_range_desc})."
+
+        message_count = len(messages)
+        logger.info(f"Generating smart summary for {message_count} messages")
+
+        # Small volume: Process everything live (simple approach)
+        if message_count <= Config.SMALL_SUMMARY_THRESHOLD:
+            logger.info(f"Using simple processing for {message_count} messages")
+            return await self._generate_simple_summary(messages, requesting_username, time_range_desc)
+        
+        # Medium volume: Use chunking with overlap
+        elif message_count <= Config.MEDIUM_SUMMARY_THRESHOLD:
+            logger.info(f"Using chunked processing for {message_count} messages")
+            return await self._generate_chunked_summary(messages, requesting_username, time_range_desc)
+        
+        # Large volume: Use progressive summarization
+        else:
+            logger.info(f"Using progressive processing for {message_count} messages")
+            return await self._generate_progressive_summary(messages, requesting_username, time_range_desc)
+
+    async def _generate_simple_summary(self, messages: List[Message], requesting_username: str, time_range_desc: str) -> str:
+        """Generate summary for small message volumes using existing approach."""
+        formatted_messages = self._format_messages_for_llm(messages, requesting_username, time_range_desc)
+        
+        # Check if we're approaching token limits even for "simple" processing
+        estimated_tokens = self._estimate_tokens(formatted_messages)
+        if estimated_tokens > Config.MAX_CONTEXT_TOKENS * 0.8:  # Use 80% of limit as safety margin
+            logger.warning(f"Simple summary approaching token limit ({estimated_tokens} tokens), falling back to chunked")
+            return await self._generate_chunked_summary(messages, requesting_username, time_range_desc)
+        
         system_prompt = Config.SYSTEM_PROMPT.replace(
             "{username}", requesting_username
         ).replace("{time_range}", time_range_desc)
@@ -229,15 +440,94 @@ class SummaryEngine:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": formatted_messages},
                 ],
-                # max_tokens=500,
-                # temperature=0.7,
             )
 
             raw_summary = response.choices[0].message.content.strip()
             return sanitize_html(raw_summary)
 
         except Exception as e:
-            logger.error(f"Failed to generate summary: {e}")
+            logger.error(f"Failed to generate simple summary: {e}")
+            # Fallback to chunked approach
+            return await self._generate_chunked_summary(messages, requesting_username, time_range_desc)
+
+    async def _generate_chunked_summary(self, messages: List[Message], requesting_username: str, time_range_desc: str) -> str:
+        """Generate summary using overlapping chunks for medium message volumes."""
+        chunks = self._chunk_messages(messages, Config.SUMMARY_CHUNK_SIZE, Config.SUMMARY_CHUNK_OVERLAP)
+        logger.info(f"Created {len(chunks)} chunks for chunked summary")
+        
+        chunk_summaries = []
+        for i, chunk in enumerate(chunks):
+            chunk_summary = await self._summarize_chunk(chunk, i, len(chunks))
+            if chunk_summary:
+                chunk_summaries.append(chunk_summary)
+        
+        return await self._create_meta_summary(chunk_summaries, requesting_username, time_range_desc, len(messages))
+
+    async def _generate_progressive_summary(self, messages: List[Message], requesting_username: str, time_range_desc: str) -> str:
+        """Generate summary using progressive approach for large message volumes."""
+        # For very large volumes, use larger chunks to reduce API calls
+        large_chunk_size = Config.SUMMARY_CHUNK_SIZE * 2
+        chunks = self._chunk_messages(messages, large_chunk_size, Config.SUMMARY_CHUNK_OVERLAP)
+        logger.info(f"Created {len(chunks)} large chunks for progressive summary")
+
+        # First pass: Summarize each large chunk
+        chunk_summaries = []
+        for i, chunk in enumerate(chunks):
+            chunk_summary = await self._summarize_chunk(chunk, i, len(chunks))
+            if chunk_summary:
+                chunk_summaries.append(chunk_summary)
+        
+        # If we still have too many chunk summaries, do a second pass
+        if len(chunk_summaries) > 8:  # Arbitrary threshold for second-level chunking
+            logger.info(f"Performing second-level summarization for {len(chunk_summaries)} chunk summaries")
+
+            # Group chunk summaries into meta-chunks
+            meta_chunks = []
+            chunk_size = 4  # Group 4 summaries at a time
+            for i in range(0, len(chunk_summaries), chunk_size):
+                meta_chunk = chunk_summaries[i:i + chunk_size]
+                meta_chunks.append(meta_chunk)
+
+            # Summarize each meta-chunk
+            meta_summaries = []
+            for i, meta_chunk in enumerate(meta_chunks):
+                combined_text = "\n\n".join([f"Section {j+1}: {summary}" for j, summary in enumerate(meta_chunk)])
+
+                try:
+                    response = await self.client.chat.completions.create(
+                        model=Config.SUMMARY_MODEL,
+                        messages=[
+                            {"role": "system", "content": Config.META_CHUNK_SYSTEM_PROMPT.format(num_sections=len(meta_chunk))},
+                            {"role": "user", "content": combined_text},
+                        ],
+                        max_tokens=500,
+                    )
+                    
+                    meta_summary = response.choices[0].message.content.strip()
+                    meta_summaries.append(meta_summary)
+                    
+                except Exception as e:
+                    logger.error(f"Failed to create meta-chunk summary {i}: {e}")
+                    # Fallback: just combine the summaries with basic formatting
+                    meta_summaries.append(" | ".join(meta_chunk))
+            
+            # Use meta-summaries for final summary
+            chunk_summaries = meta_summaries
+        
+        return await self._create_meta_summary(chunk_summaries, requesting_username, time_range_desc, len(messages))
+
+    async def generate_summary(
+        self, messages: List[Message], requesting_username: str, time_range_desc: str
+    ) -> str:
+        """
+        Generate summary using Smart Hybrid approach.
+        This method automatically chooses the best strategy based on message volume.
+        """
+        try:
+            raw_summary = await self.generate_smart_summary(messages, requesting_username, time_range_desc)
+            return sanitize_html(raw_summary)
+        except Exception as e:
+            logger.error(f"Failed to generate smart summary: {e}")
             return f"Sorry, I couldn't generate a summary at this time. Error: {str(e)}"
 
     async def generate_mention_reply(

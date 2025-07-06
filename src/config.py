@@ -78,6 +78,52 @@ Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le ris
         """,
     )
 
+    # Image Analysis Configuration
+    IMAGE_ANALYSIS_ENABLED: bool = os.getenv("IMAGE_ANALYSIS_ENABLED", "true").lower() == "true"
+    
+    # Smart Hybrid Summary Configuration
+    # Message volume thresholds for different processing strategies
+    SMALL_SUMMARY_THRESHOLD: int = int(os.getenv("SMALL_SUMMARY_THRESHOLD", "200"))
+    MEDIUM_SUMMARY_THRESHOLD: int = int(os.getenv("MEDIUM_SUMMARY_THRESHOLD", "1000"))
+    
+    # Chunk sizes for medium and large summaries
+    SUMMARY_CHUNK_SIZE: int = int(os.getenv("SUMMARY_CHUNK_SIZE", "300"))
+    SUMMARY_CHUNK_OVERLAP: int = int(os.getenv("SUMMARY_CHUNK_OVERLAP", "50"))
+
+    # Token estimation (rough approximation: 1 token ≈ 4 chars for most models)
+    MAX_CONTEXT_TOKENS: int = int(os.getenv("MAX_CONTEXT_TOKENS", "16000"))
+    CHARS_PER_TOKEN: int = int(os.getenv("CHARS_PER_TOKEN", "4"))
+
+    # System Prompts for Smart Hybrid Approach
+    CHUNK_SYSTEM_PROMPT: str = os.getenv(
+        "CHUNK_SYSTEM_PROMPT",
+        """You are summarizing part {chunk_index} of {total_chunks} of a chat conversation. 
+Focus on:
+- ALL the discussed topics and decisions made in this time period
+- Important announcements or information
+- Ongoing discussions that may continue in other parts
+- Key participants and their contributions
+
+Do not miss any important topic. If this is not the last chunk, mention any ongoing topics that might continue."""
+    )
+
+    META_SUMMARY_PROMPT_SUFFIX: str = os.getenv(
+        "META_SUMMARY_PROMPT_SUFFIX",
+        """
+
+You are creating a final summary from {num_chunks} partial summaries of the chat. 
+Combine them into a coherent overview that:
+- Maintains chronological flow of major topics
+- Highlights ALL the topics discussed
+- Includes key decisions and announcements
+- Ensures no important information is lost"""
+    )
+
+    META_CHUNK_SYSTEM_PROMPT: str = os.getenv(
+        "META_CHUNK_SYSTEM_PROMPT",
+        "Combine these {num_sections} section summaries into one coherent summary. Maintain key information and all the topics."
+    )
+
     @classmethod
     def validate(cls) -> None:
         """Validate required configuration."""
