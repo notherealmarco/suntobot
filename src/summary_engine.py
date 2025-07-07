@@ -398,38 +398,6 @@ class SummaryEngine:
         """Rough estimation of token count based on character count."""
         return len(text) // Config.CHARS_PER_TOKEN
 
-    def _chunk_messages(self, messages: List[Message], chunk_size: int, overlap: int) -> List[List[Message]]:
-        """
-        Split messages into overlapping chunks to preserve conversation continuity.
-        
-        Args:
-            messages: List of messages to chunk
-            chunk_size: Target number of messages per chunk
-            overlap: Number of messages to overlap between chunks
-            
-        Returns:
-            List of message chunks with overlap
-        """
-        if len(messages) <= chunk_size:
-            return [messages]
-        
-        chunks = []
-        start = 0
-        
-        while start < len(messages):
-            end = min(start + chunk_size, len(messages))
-            chunk = messages[start:end]
-            chunks.append(chunk)
-            
-            # If this is the last chunk, break
-            if end >= len(messages):
-                break
-                
-            # Move start position with overlap consideration
-            start = end - overlap
-            
-        return chunks
-
     async def _summarize_chunk(self, messages: List[Message], chunk_index: int, total_chunks: int) -> str:
         """
         Summarize a single chunk of messages.
@@ -663,47 +631,133 @@ Please create a final comprehensive summary that combines all parts."""
             logger.info(f"Using cached chunk {cached_chunk['chunk_id']} "
                        f"({cached_chunk['start_message_id']}-{cached_chunk['end_message_id']})")
         
-        # Check if we need to process any uncovered ranges
+        # Check if cached chunks fully cover our request range
         covered_start = min(chunk['start_message_id'] for chunk in overlapping_chunks)
         covered_end = max(chunk['end_message_id'] for chunk in overlapping_chunks)
         
-        # Process messages before the first cached chunk
-        if start_message_id < covered_start:
-            logger.info(f"Processing uncovered range before cache: {start_message_id}-{covered_start-1}")
-            uncovered_messages = [m for m in sorted_messages if start_message_id <= m.message_id < covered_start]
-            if uncovered_messages:
-                uncovered_summary = await self._process_uncovered_range(
-                    uncovered_messages, len(all_summaries), requesting_username
-                )
-                all_summaries.insert(0, uncovered_summary)  # Insert at beginning
+        # Check if we have full coverage
+        request_fully_covered = (covered_start <= start_message_id and covered_end >= end_message_id)
         
-        # Process messages after the last cached chunk
-        if end_message_id > covered_end:
-            logger.info(f"Processing uncovered range after cache: {covered_end+1}-{end_message_id}")
-            uncovered_messages = [m for m in sorted_messages if m.message_id > covered_end]
-            if uncovered_messages:
-                uncovered_summary = await self._process_uncovered_range(
-                    uncovered_messages, len(all_summaries), requesting_username
-                )
-                all_summaries.append(uncovered_summary)  # Append at end
-                
-                # Cache this new chunk if it's complete
-                if len(uncovered_messages) >= Config.SUMMARY_CHUNK_SIZE:
-                    chunk_boundary = ChunkBoundary(
-                        start_message_id=uncovered_messages[0].message_id,
-                        end_message_id=uncovered_messages[-1].message_id,
-                        message_count=len(uncovered_messages),
-                        is_complete=True
-                    )
-                    self.chunk_cache_manager.store_chunk_summary(
-                        chat_id, chunk_boundary, uncovered_summary
-                    )
+        if request_fully_covered:
+            logger.info(f"Request range {start_message_id}-{end_message_id} is fully covered by cached chunks "
+                       f"({covered_start}-{covered_end}). Using cached summaries only.")
+        else:
+            # Process messages before the first cached chunk
+            if start_message_id < covered_start:
+                logger.info(f"Processing uncovered range before cache: {start_message_id}-{covered_start-1}")
+                uncovered_messages = [m for m in sorted_messages if start_message_id <= m.message_id < covered_start]
+                if uncovered_messages:
+                    # For large uncovered ranges, use proper chunking with caching
+                    if len(uncovered_messages) >= Config.SUMMARY_CHUNK_SIZE:
+                        logger.info(f"Large uncovered range ({len(uncovered_messages)} messages) - using deterministic chunking with caching")
+                        # Calculate boundaries for the uncovered range
+                        uncovered_boundaries = self.chunk_cache_manager.calculate_chunk_boundaries(
+                            uncovered_messages, Config.SUMMARY_CHUNK_SIZE, Config.SUMMARY_CHUNK_OVERLAP
+                        )
+                        # Process with caching enabled
+                        uncovered_summaries = await self._process_chunks_with_boundaries(
+                            uncovered_messages, uncovered_boundaries, chat_id, should_cache=True
+                        )
+                        # Insert at beginning (in correct order)
+                        for summary in reversed(uncovered_summaries):
+                            all_summaries.insert(0, summary)
+                    else:
+                        # Small uncovered range - process as before
+                        logger.info(f"Small uncovered range ({len(uncovered_messages)} messages) - processing without caching")
+                        uncovered_summary = await self._process_uncovered_range(
+                            uncovered_messages, len(all_summaries), requesting_username
+                        )
+                        all_summaries.insert(0, uncovered_summary)  # Insert at beginning
+            
+            # Process messages after the last cached chunk
+            if end_message_id > covered_end:
+                logger.info(f"Processing uncovered range after cache: {covered_end+1}-{end_message_id}")
+                uncovered_messages = [m for m in sorted_messages if m.message_id > covered_end]
+                if uncovered_messages:
+                    # For large uncovered ranges, use proper chunking with caching
+                    if len(uncovered_messages) >= Config.SUMMARY_CHUNK_SIZE:
+                        logger.info(f"Large uncovered range ({len(uncovered_messages)} messages) - using deterministic chunking with caching")
+                        # Calculate boundaries for the uncovered range
+                        uncovered_boundaries = self.chunk_cache_manager.calculate_chunk_boundaries(
+                            uncovered_messages, Config.SUMMARY_CHUNK_SIZE, Config.SUMMARY_CHUNK_OVERLAP
+                        )
+                        # Process with caching enabled
+                        uncovered_summaries = await self._process_chunks_with_boundaries(
+                            uncovered_messages, uncovered_boundaries, chat_id, should_cache=True
+                        )
+                        all_summaries.extend(uncovered_summaries)
+                    else:
+                        # Small uncovered range - process as before
+                        logger.info(f"Small uncovered range ({len(uncovered_messages)} messages) - processing without caching")
+                        uncovered_summary = await self._process_uncovered_range(
+                            uncovered_messages, len(all_summaries), requesting_username
+                        )
+                        all_summaries.append(uncovered_summary)
         
         logger.info(f"Cache-aware summary complete: using {len(overlapping_chunks)} cached chunks, "
                    f"processed {len(all_summaries) - len(overlapping_chunks)} new chunks")
         
+        if len(all_summaries) == len(overlapping_chunks):
+            logger.info("All content was served from cache - no new processing needed")
+        
         # Create final meta-summary from all summaries
         return await self._create_meta_summary(all_summaries, requesting_username, time_range_desc, len(sorted_messages))
+
+    async def _process_chunks_with_boundaries(
+        self,
+        messages: List[Message],
+        boundaries: List[ChunkBoundary],
+        chat_id: int,
+        should_cache: bool = False,
+        cached_chunks: Optional[Dict[str, str]] = None
+    ) -> List[str]:
+        """
+        Process a list of chunk boundaries and return summaries.
+        
+        Args:
+            messages: List of messages to process
+            boundaries: List of chunk boundaries
+            chat_id: Chat ID for caching purposes
+            should_cache: Whether to store summaries in cache
+            cached_chunks: Pre-existing cached chunks (chunk_id -> summary)
+            
+        Returns:
+            List of chunk summaries
+        """
+        summaries = []
+        cached_chunks = cached_chunks or {}
+        
+        for i, boundary in enumerate(boundaries):
+            # Skip incomplete chunks if we're being strict about caching
+            if should_cache and not boundary.is_complete:
+                logger.info(f"Skipping incomplete chunk from {boundary.start_message_id} to {boundary.end_message_id}")
+                continue
+                
+            # Get messages for this boundary
+            chunk_messages = self.chunk_cache_manager.get_messages_for_boundary(messages, boundary)
+            if not chunk_messages:
+                continue
+            
+            # Check for cached summary first
+            chunk_id = self.chunk_cache_manager.generate_chunk_id(
+                chat_id, boundary.start_message_id, boundary.end_message_id
+            )
+            
+            if chunk_id in cached_chunks:
+                logger.info(f"Using cached summary for chunk {chunk_id}")
+                summaries.append(cached_chunks[chunk_id])
+            else:
+                # Generate new summary
+                summary = await self._summarize_chunk(chunk_messages, i, len(boundaries))
+                if summary:
+                    summaries.append(summary)
+                    
+                    # Store in cache if requested and chunk is complete
+                    if should_cache and boundary.is_complete:
+                        self.chunk_cache_manager.store_chunk_summary(chat_id, boundary, summary)
+                        logger.info(f"Cached new chunk {i+1}/{len(boundaries)}")
+        
+        return summaries
 
     async def _process_uncovered_range(
         self, messages: List[Message], chunk_index: int, requesting_username: str
@@ -713,17 +767,15 @@ Please create a final comprehensive summary that combines all parts."""
             # Small range, process directly
             return await self._summarize_chunk(messages, chunk_index, chunk_index + 1)
         else:
-            # Large range, use chunking
+            # Large range, use chunking (don't cache uncovered ranges)
             boundaries = self.chunk_cache_manager.calculate_chunk_boundaries(
                 messages, Config.SUMMARY_CHUNK_SIZE, Config.SUMMARY_CHUNK_OVERLAP
             )
             
-            summaries = []
-            for i, boundary in enumerate(boundaries):
-                chunk_messages = self.chunk_cache_manager.get_messages_for_boundary(messages, boundary)
-                if chunk_messages:
-                    summary = await self._summarize_chunk(chunk_messages, i, len(boundaries))
-                    summaries.append(summary)
+            chat_id = messages[0].chat_id if messages else 0
+            summaries = await self._process_chunks_with_boundaries(
+                messages, boundaries, chat_id, should_cache=False
+            )
             
             # If multiple chunks, combine them
             if len(summaries) > 1:
@@ -745,20 +797,10 @@ Please create a final comprehensive summary that combines all parts."""
         
         logger.info(f"Processing {len(boundaries)} chunks deterministically (no cache)")
         
-        chat_id = messages[0].chat_id
-        all_summaries = []
-        
-        for i, boundary in enumerate(boundaries):
-            chunk_messages = self.chunk_cache_manager.get_messages_for_boundary(messages, boundary)
-            
-            if chunk_messages:
-                summary = await self._summarize_chunk(chunk_messages, i, len(boundaries))
-                all_summaries.append(summary)
-                
-                # Cache the summary if it's a complete chunk
-                if boundary.is_complete and summary:
-                    self.chunk_cache_manager.store_chunk_summary(chat_id, boundary, summary)
-                    logger.info(f"Cached new chunk {i+1}/{len(boundaries)}")
+        chat_id = messages[0].chat_id if messages else 0
+        all_summaries = await self._process_chunks_with_boundaries(
+            messages, boundaries, chat_id, should_cache=True
+        )
         
         return await self._create_meta_summary(all_summaries, requesting_username, time_range_desc, len(messages))
 
@@ -795,35 +837,25 @@ Please create a final comprehensive summary that combines all parts."""
 
     async def _generate_chunked_summary(self, messages: List[Message], requesting_username: str, time_range_desc: str) -> str:
         """Generate summary using overlapping chunks for medium message volumes."""
+        # Use the existing chunk cache manager instead of creating a new one
+        if not self.chunk_cache_manager:
+            logger.warning("No chunk cache manager available, processing without cache")
+            return await self._generate_simple_summary(messages, requesting_username, time_range_desc)
+            
         # Calculate chunk boundaries
-        cache_manager = ChunkCacheManager(db_manager=None)  # TODO: Inject db_manager
-        boundaries = cache_manager.calculate_chunk_boundaries(messages, Config.SUMMARY_CHUNK_SIZE, Config.SUMMARY_CHUNK_OVERLAP)
+        boundaries = self.chunk_cache_manager.calculate_chunk_boundaries(
+            messages, Config.SUMMARY_CHUNK_SIZE, Config.SUMMARY_CHUNK_OVERLAP
+        )
         logger.info(f"Calculated {len(boundaries)} chunk boundaries")
 
         # Check cache for existing summaries
-        cached_chunks = cache_manager.get_cached_chunks(requesting_username, boundaries)
+        chat_id = messages[0].chat_id if messages else 0
+        cached_chunks = self.chunk_cache_manager.get_cached_chunks(chat_id, boundaries)
         
-        chunk_summaries = []
-        for boundary in boundaries:
-            if boundary.is_complete:
-                # Get messages for this boundary
-                chunk_messages = cache_manager.get_messages_for_boundary(messages, boundary)
-                
-                # If cached summary exists, use it
-                chunk_id = cache_manager.generate_chunk_id(requesting_username, boundary.start_message_id, boundary.end_message_id)
-                if chunk_id in cached_chunks:
-                    logger.info(f"Using cached summary for chunk {chunk_id}")
-                    chunk_summaries.append(cached_chunks[chunk_id])
-                else:
-                    # Summarize the chunk
-                    chunk_summary = await self._summarize_chunk(chunk_messages, 0, 1)
-                    chunk_summaries.append(chunk_summary)
-                    
-                    # Store the summary in cache
-                    cache_manager.store_chunk_summary(requesting_username, boundary, chunk_summary)
-            else:
-                # Incomplete chunk, handle as needed (e.g., log, ignore, etc.)
-                logger.info(f"Skipping incomplete chunk from {boundary.start_message_id} to {boundary.end_message_id}")
+        # Process chunks with caching
+        chunk_summaries = await self._process_chunks_with_boundaries(
+            messages, boundaries, chat_id, should_cache=True, cached_chunks=cached_chunks
+        )
         
         return await self._create_meta_summary(chunk_summaries, requesting_username, time_range_desc, len(messages))
 
@@ -831,30 +863,61 @@ Please create a final comprehensive summary that combines all parts."""
         """Generate summary using progressive approach for large message volumes."""
         # For very large volumes, use larger chunks to reduce API calls
         large_chunk_size = Config.SUMMARY_CHUNK_SIZE * 2
-        chunks = self._chunk_messages(messages, large_chunk_size, Config.SUMMARY_CHUNK_OVERLAP)
-        logger.info(f"Created {len(chunks)} large chunks for progressive summary")
-
-        # First pass: Summarize each large chunk
-        chunk_summaries = []
-        for i, chunk in enumerate(chunks):
-            chunk_summary = await self._summarize_chunk(chunk, i, len(chunks))
-            if chunk_summary:
-                chunk_summaries.append(chunk_summary)
         
-        # If we still have too many chunk summaries, do a second pass
-        if len(chunk_summaries) > 8:  # Arbitrary threshold for second-level chunking
-            logger.info(f"Performing second-level summarization for {len(chunk_summaries)} chunk summaries")
+        if not self.chunk_cache_manager:
+            # Fallback to simple approach if no cache manager
+            logger.warning("No chunk cache manager available for progressive summary")
+            return await self._generate_simple_summary(messages, requesting_username, time_range_desc)
+            
+        # Calculate boundaries with larger chunks
+        boundaries = self.chunk_cache_manager.calculate_chunk_boundaries(
+            messages, large_chunk_size, Config.SUMMARY_CHUNK_OVERLAP
+        )
+        logger.info(f"Created {len(boundaries)} large chunks for progressive summary")
 
-            # Group chunk summaries into meta-chunks
+        # First pass: Summarize each large chunk (don't cache these large chunks)
+        chat_id = messages[0].chat_id if messages else 0
+        chunk_summaries = await self._process_chunks_with_boundaries(
+            messages, boundaries, chat_id, should_cache=False
+        )
+        
+        # If we have too much content in chunk summaries, do a second pass
+        total_summary_chars = sum(len(summary) for summary in chunk_summaries)
+        max_chars_for_meta_summary = Config.MAX_CONTEXT_TOKENS * Config.CHARS_PER_TOKEN // 2  # Use half of max tokens for conservative margin
+        
+        if total_summary_chars > max_chars_for_meta_summary:
+            estimated_tokens = total_summary_chars // Config.CHARS_PER_TOKEN
+            logger.info(f"Performing second-level summarization: {len(chunk_summaries)} summaries with {total_summary_chars} chars (~{estimated_tokens} tokens) exceed {max_chars_for_meta_summary} char limit")
+
+            # Group chunk summaries into meta-chunks based on character count
             meta_chunks = []
-            chunk_size = 4  # Group 4 summaries at a time
-            for i in range(0, len(chunk_summaries), chunk_size):
-                meta_chunk = chunk_summaries[i:i + chunk_size]
-                meta_chunks.append(meta_chunk)
+            current_meta_chunk = []
+            current_char_count = 0
+            target_chars_per_meta_chunk = max_chars_for_meta_summary // 4  # Aim for 4 meta-chunks initially
+            
+            for summary in chunk_summaries:
+                summary_chars = len(summary)
+                
+                # If adding this summary would exceed our target, start a new meta-chunk
+                if current_char_count + summary_chars > target_chars_per_meta_chunk and current_meta_chunk:
+                    meta_chunks.append(current_meta_chunk)
+                    current_meta_chunk = [summary]
+                    current_char_count = summary_chars
+                else:
+                    current_meta_chunk.append(summary)
+                    current_char_count += summary_chars
+            
+            # Add the last meta-chunk if it has content
+            if current_meta_chunk:
+                meta_chunks.append(current_meta_chunk)
 
             # Summarize each meta-chunk
             meta_summaries = []
             for i, meta_chunk in enumerate(meta_chunks):
+                meta_chunk_chars = sum(len(s) for s in meta_chunk)
+                estimated_tokens = meta_chunk_chars // Config.CHARS_PER_TOKEN
+                logger.info(f"Processing meta-chunk {i+1}/{len(meta_chunks)} with {len(meta_chunk)} summaries ({meta_chunk_chars} chars, ~{estimated_tokens} tokens)")
+                
                 combined_text = "\n\n".join([f"Section {j+1}: {summary}" for j, summary in enumerate(meta_chunk)])
 
                 try:
@@ -864,7 +927,6 @@ Please create a final comprehensive summary that combines all parts."""
                             {"role": "system", "content": Config.META_CHUNK_SYSTEM_PROMPT.format(num_sections=len(meta_chunk))},
                             {"role": "user", "content": combined_text},
                         ],
-                        max_tokens=500,
                     )
                     
                     meta_summary = response.choices[0].message.content.strip()

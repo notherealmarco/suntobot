@@ -97,36 +97,34 @@ Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le ris
     # System Prompts for Smart Hybrid Approach
     CHUNK_SYSTEM_PROMPT: str = os.getenv(
         "CHUNK_SYSTEM_PROMPT",
-        """You are summarizing part {chunk_index} of {total_chunks} of a chat conversation. 
-Focus on:
-- Discussed topics and decisions made with key participants
-- Important announcements or information
-- Maintain a very concise summary. Overall topics are important, but details are bot.
-- Use bullet points only for clarity, in chronological order
-- Use 1-2 sentences per topic, max 120 characters each
-- Aim at 500 characters total for your output
+        """Stai riassumendo la parte {chunk_index} di {total_chunks} di una conversazione chat.
+Concentrati su:
+- Argomenti discussi e decisioni prese con i partecipanti chiave
+- Annunci importanti o informazioni
+- Mantieni un riassunto molto conciso. Gli argomenti generali sono importanti, ma non i dettagli.
+- Usa elenchi puntati solo per chiarezza, in ordine cronologico
+- Usa 1-2 frasi per argomento, max 120 caratteri ciascuna
+- Punta a 500 caratteri totali per il tuo output
 
-Example format:
-- Topic 1: Brief summary of discussion
-- Topic 2: Brief summary of discussion
+Output di esempio:
+- Argomento 1: Breve riassunto della discussione
+- Argomento 2: Breve riassunto della discussione
 """
     )
 
     META_SUMMARY_PROMPT_SUFFIX: str = os.getenv(
         "META_SUMMARY_PROMPT_SUFFIX",
-        """
-
-You are creating a final summary from {num_chunks} partial summaries of the chat. 
-Combine them into a coherent overview that:
-- Maintains chronological flow of major topics
-- Highlights ALL the topics discussed
-- Includes key decisions and announcements
-- Ensures no important information is lost"""
+        """Stai creando un riassunto finale da {num_chunks} riassunti parziali della chat.
+Combinali in una panoramica coerente che:
+- Mantiene il flusso cronologico degli argomenti principali
+- Evidenzia TUTTI gli argomenti discussi
+- Include decisioni chiave e annunci
+- Assicura che nessuna informazione importante vada persa"""
     )
 
     META_CHUNK_SYSTEM_PROMPT: str = os.getenv(
         "META_CHUNK_SYSTEM_PROMPT",
-        "Combine these {num_sections} section summaries into one coherent summary. Maintain key information and all the topics."
+        "Combina questi {num_sections} riassunti di sezione in un unico riassunto coerente. Mantieni le informazioni chiave e tutti gli argomenti."
     )
 
     @classmethod
