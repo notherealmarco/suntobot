@@ -21,7 +21,7 @@ class MessageHandler:
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager = db_manager
         self.image_analyzer = ImageAnalyzer()
-        self.summary_engine = SummaryEngine()
+        self.summary_engine = SummaryEngine(db_manager)
         self.bot_username = None
 
     async def handle_message(

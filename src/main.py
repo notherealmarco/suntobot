@@ -27,7 +27,7 @@ class SuntoBot:
         Config.validate()
 
         self.db_manager = DatabaseManager(Config.DATABASE_URL)
-        self.summary_engine = SummaryEngine()
+        self.summary_engine = SummaryEngine(self.db_manager)
         self.message_handler = MsgHandler(self.db_manager)
         self.command_handler = CmdHandler(self.db_manager, self.summary_engine)
 

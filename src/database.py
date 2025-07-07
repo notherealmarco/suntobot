@@ -42,6 +42,24 @@ class Message(Base):
     )
 
 
+class ChunkSummary(Base):
+    __tablename__ = "chunk_summaries"
+
+    id = Column(Integer, primary_key=True)
+    chunk_id = Column(String(255), unique=True, nullable=False)
+    chat_id = Column(BigInteger, nullable=False)
+    start_message_id = Column(BigInteger, nullable=False)
+    end_message_id = Column(BigInteger, nullable=False)
+    message_count = Column(Integer, nullable=False)
+    summary_text = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=func.current_timestamp())
+
+    __table_args__ = (
+        Index("idx_chunk_summaries_chat_id", "chat_id"),
+        Index("idx_chunk_summaries_range", "chat_id", "start_message_id", "end_message_id"),
+    )
+
+
 class AllowedGroup(Base):
     __tablename__ = "allowed_groups"
 
@@ -288,5 +306,66 @@ class DatabaseManager:
             )
 
             return last_message.timestamp if last_message else None
+        finally:
+            session.close()
+
+    def get_chunk_summary(self, chunk_id: str) -> Optional[str]:
+        """Get cached chunk summary by chunk ID."""
+        session = self.get_session()
+        try:
+            chunk_summary = (
+                session.query(ChunkSummary)
+                .filter(ChunkSummary.chunk_id == chunk_id)
+                .first()
+            )
+            return chunk_summary.summary_text if chunk_summary else None
+        finally:
+            session.close()
+
+    def store_chunk_summary(
+        self, 
+        chunk_id: str, 
+        chat_id: int, 
+        start_message_id: int, 
+        end_message_id: int, 
+        message_count: int,
+        summary_text: str
+    ) -> None:
+        """Store a chunk summary in the cache."""
+        session = self.get_session()
+        try:
+            chunk_summary = ChunkSummary(
+                chunk_id=chunk_id,
+                chat_id=chat_id,
+                start_message_id=start_message_id,
+                end_message_id=end_message_id,
+                message_count=message_count,
+                summary_text=summary_text
+            )
+            session.add(chunk_summary)
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    def get_cached_chunks_for_range(
+        self, chat_id: int, start_message_id: int, end_message_id: int
+    ) -> List[ChunkSummary]:
+        """Get all cached chunks that overlap with the given message range."""
+        session = self.get_session()
+        try:
+            chunks = (
+                session.query(ChunkSummary)
+                .filter(
+                    ChunkSummary.chat_id == chat_id,
+                    ChunkSummary.start_message_id <= end_message_id,
+                    ChunkSummary.end_message_id >= start_message_id
+                )
+                .order_by(ChunkSummary.start_message_id.asc())
+                .all()
+            )
+            return chunks
         finally:
             session.close()

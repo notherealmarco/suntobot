@@ -87,8 +87,8 @@ Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le ris
     MEDIUM_SUMMARY_THRESHOLD: int = int(os.getenv("MEDIUM_SUMMARY_THRESHOLD", "1000"))
     
     # Chunk sizes for medium and large summaries
-    SUMMARY_CHUNK_SIZE: int = int(os.getenv("SUMMARY_CHUNK_SIZE", "300"))
-    SUMMARY_CHUNK_OVERLAP: int = int(os.getenv("SUMMARY_CHUNK_OVERLAP", "50"))
+    SUMMARY_CHUNK_SIZE: int = int(os.getenv("SUMMARY_CHUNK_SIZE", "70"))
+    SUMMARY_CHUNK_OVERLAP: int = int(os.getenv("SUMMARY_CHUNK_OVERLAP", "5"))
 
     # Token estimation (rough approximation: 1 token ≈ 4 chars for most models)
     MAX_CONTEXT_TOKENS: int = int(os.getenv("MAX_CONTEXT_TOKENS", "16000"))
@@ -99,12 +99,17 @@ Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le ris
         "CHUNK_SYSTEM_PROMPT",
         """You are summarizing part {chunk_index} of {total_chunks} of a chat conversation. 
 Focus on:
-- ALL the discussed topics and decisions made in this time period
+- Discussed topics and decisions made with key participants
 - Important announcements or information
-- Ongoing discussions that may continue in other parts
-- Key participants and their contributions
+- Maintain a very concise summary. Overall topics are important, but details are bot.
+- Use bullet points only for clarity, in chronological order
+- Use 1-2 sentences per topic, max 120 characters each
+- Aim at 500 characters total for your output
 
-Do not miss any important topic. If this is not the last chunk, mention any ongoing topics that might continue."""
+Example format:
+- Topic 1: Brief summary of discussion
+- Topic 2: Brief summary of discussion
+"""
     )
 
     META_SUMMARY_PROMPT_SUFFIX: str = os.getenv(
