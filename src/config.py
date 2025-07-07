@@ -79,13 +79,15 @@ Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le ris
     )
 
     # Image Analysis Configuration
-    IMAGE_ANALYSIS_ENABLED: bool = os.getenv("IMAGE_ANALYSIS_ENABLED", "true").lower() == "true"
-    
+    IMAGE_ANALYSIS_ENABLED: bool = (
+        os.getenv("IMAGE_ANALYSIS_ENABLED", "true").lower() == "true"
+    )
+
     # Smart Hybrid Summary Configuration
     # Message volume thresholds for different processing strategies
     SMALL_SUMMARY_THRESHOLD: int = int(os.getenv("SMALL_SUMMARY_THRESHOLD", "200"))
     MEDIUM_SUMMARY_THRESHOLD: int = int(os.getenv("MEDIUM_SUMMARY_THRESHOLD", "1000"))
-    
+
     # Chunk sizes for medium and large summaries
     SUMMARY_CHUNK_SIZE: int = int(os.getenv("SUMMARY_CHUNK_SIZE", "70"))
     SUMMARY_CHUNK_OVERLAP: int = int(os.getenv("SUMMARY_CHUNK_OVERLAP", "5"))
@@ -109,7 +111,7 @@ Concentrati su:
 Output di esempio:
 - Argomento 1: Breve riassunto della discussione
 - Argomento 2: Breve riassunto della discussione
-"""
+""",
     )
 
     META_SUMMARY_PROMPT_SUFFIX: str = os.getenv(
@@ -119,12 +121,12 @@ Combinali in una panoramica coerente che:
 - Mantiene il flusso cronologico degli argomenti principali
 - Evidenzia TUTTI gli argomenti discussi
 - Include decisioni chiave e annunci
-- Assicura che nessuna informazione importante vada persa"""
+- Assicura che nessuna informazione importante vada persa""",
     )
 
     META_CHUNK_SYSTEM_PROMPT: str = os.getenv(
         "META_CHUNK_SYSTEM_PROMPT",
-        "Combina questi {num_sections} riassunti di sezione in un unico riassunto coerente. Mantieni le informazioni chiave e tutti gli argomenti."
+        "Combina questi {num_sections} riassunti di sezione in un unico riassunto coerente. Mantieni le informazioni chiave e tutti gli argomenti.",
     )
 
     @classmethod

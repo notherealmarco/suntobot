@@ -60,7 +60,7 @@ class MessageHandler:
                 )
             )
             reply_text = message.reply_to_message.text or ""
-            
+
             # Check if we're replying to a photo
             replied_to_photo_description = None
             if message.reply_to_message.photo:
@@ -69,19 +69,24 @@ class MessageHandler:
                     replied_message_from_db = self.db_manager.get_message_by_message_id(
                         message.reply_to_message.message_id
                     )
-                    if replied_message_from_db and replied_message_from_db.image_description:
-                        replied_to_photo_description = replied_message_from_db.image_description
+                    if (
+                        replied_message_from_db
+                        and replied_message_from_db.image_description
+                    ):
+                        replied_to_photo_description = (
+                            replied_message_from_db.image_description
+                        )
                 except Exception as e:
-                    logger.debug(f"Could not retrieve photo description for reply context: {e}")
+                    logger.debug(
+                        f"Could not retrieve photo description for reply context: {e}"
+                    )
 
             if reply_text:
                 message_text = (
                     f"[Replying to {reply_author}: '{reply_text}'] {message_text}"
                 )
             elif replied_to_photo_description:
-                message_text = (
-                    f"[Replying to {reply_author}'s photo: {replied_to_photo_description}] {message_text}"
-                )
+                message_text = f"[Replying to {reply_author}'s photo: {replied_to_photo_description}] {message_text}"
             elif message.reply_to_message.photo:
                 message_text = f"[Replying to {reply_author}'s photo] {message_text}"
             else:
@@ -265,8 +270,12 @@ class MessageHandler:
             current_image_description = None
             if message.photo:
                 try:
-                    current_image_description = await self._process_image(message, context)
-                    logger.info(f"Image analyzed for mention: {current_image_description}")
+                    current_image_description = await self._process_image(
+                        message, context
+                    )
+                    logger.info(
+                        f"Image analyzed for mention: {current_image_description}"
+                    )
                 except Exception as e:
                     logger.error(f"Failed to process/analyze image for mention: {e}")
 

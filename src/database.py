@@ -56,7 +56,9 @@ class ChunkSummary(Base):
 
     __table_args__ = (
         Index("idx_chunk_summaries_chat_id", "chat_id"),
-        Index("idx_chunk_summaries_range", "chat_id", "start_message_id", "end_message_id"),
+        Index(
+            "idx_chunk_summaries_range", "chat_id", "start_message_id", "end_message_id"
+        ),
     )
 
 
@@ -323,13 +325,13 @@ class DatabaseManager:
             session.close()
 
     def store_chunk_summary(
-        self, 
-        chunk_id: str, 
-        chat_id: int, 
-        start_message_id: int, 
-        end_message_id: int, 
+        self,
+        chunk_id: str,
+        chat_id: int,
+        start_message_id: int,
+        end_message_id: int,
         message_count: int,
-        summary_text: str
+        summary_text: str,
     ) -> None:
         """Store a chunk summary in the cache."""
         session = self.get_session()
@@ -340,7 +342,7 @@ class DatabaseManager:
                 start_message_id=start_message_id,
                 end_message_id=end_message_id,
                 message_count=message_count,
-                summary_text=summary_text
+                summary_text=summary_text,
             )
             session.add(chunk_summary)
             session.commit()
@@ -361,7 +363,7 @@ class DatabaseManager:
                 .filter(
                     ChunkSummary.chat_id == chat_id,
                     ChunkSummary.start_message_id <= end_message_id,
-                    ChunkSummary.end_message_id >= start_message_id
+                    ChunkSummary.end_message_id >= start_message_id,
                 )
                 .order_by(ChunkSummary.start_message_id.asc())
                 .all()
