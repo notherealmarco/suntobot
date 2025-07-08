@@ -371,3 +371,46 @@ class DatabaseManager:
             return chunks
         finally:
             session.close()
+
+    def get_recent_messages(self, chat_id: int, limit: int = 10000) -> List[Message]:
+        """Get recent messages for a chat, ordered by message_id (oldest first)."""
+        session = self.get_session()
+        try:
+            messages = (
+                session.query(Message)
+                .filter(Message.chat_id == chat_id)
+                .order_by(Message.message_id.asc())
+                .limit(limit)
+                .all()
+            )
+            return messages
+        finally:
+            session.close()
+
+    def get_cached_chunks_for_chat(self, chat_id: int) -> List[ChunkSummary]:
+        """Get all cached chunks for a chat."""
+        session = self.get_session()
+        try:
+            chunks = (
+                session.query(ChunkSummary)
+                .filter(ChunkSummary.chat_id == chat_id)
+                .order_by(ChunkSummary.start_message_id.asc())
+                .all()
+            )
+            return chunks
+        finally:
+            session.close()
+
+    def get_all_chat_ids(self) -> List[int]:
+        """Get all unique chat IDs that have messages."""
+        session = self.get_session()
+        try:
+            # Get distinct chat IDs from messages table
+            chat_ids = (
+                session.query(Message.chat_id)
+                .distinct()
+                .all()
+            )
+            return [chat_id[0] for chat_id in chat_ids]
+        finally:
+            session.close()

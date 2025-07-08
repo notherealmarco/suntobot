@@ -79,6 +79,10 @@ class SuntoBot:
 
         await self.application.initialize()
         await self.application.start()
+        
+        # Initialize chunk processing for all existing chats
+        await self.summary_engine.startup_initialization()
+        
         await self.application.updater.start_polling()
 
         logger.info("SuntoBot is running! Press Ctrl+C to stop.")
