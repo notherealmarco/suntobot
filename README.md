@@ -54,9 +54,22 @@ MENTION_CONTEXT_SIZE=30
 MENTION_CONTEXT_HOURS=4
 OLD_MENTION_CONTEXT_SIZE=10
 
+# Optional: Image analysis configuration
+IMAGE_ANALYSIS_ENABLED=true
+
+# Optional: Summary processing configuration
+SUMMARY_CHUNK_SIZE=70
+MAX_PARALLEL_CHUNKS=2
+MAX_CONTEXT_TOKENS=16000
+CHARS_PER_TOKEN=4
+
 # Optional: Custom system prompts (uncomment to use)
 # SYSTEM_PROMPT="Your custom summary prompt..."
 # MENTION_SYSTEM_PROMPT="Your custom mention reply prompt..."
+# CHUNK_SYSTEM_PROMPT="Your custom chunk processing prompt..."
+# META_SUMMARY_SYSTEM_PROMPT="Your custom meta-summary prompt..."
+# SYSTEM_PROMPT_CHUNK_PREAMBLE="Your custom chunk preamble..."
+# META_SUMMARY_SYSTEM_PROMPT_SUFFIX="Your custom meta-summary suffix..."
 ```
 
 4. **Start the bot with Docker Compose:**
@@ -118,20 +131,29 @@ uv run python src/main.py
 ### Environment Variables
 All configuration is done through environment variables in the `.env` file:
 
-| Variable                  | Description                        | Required | Default                   | Example                              |
-| ------------------------- | ---------------------------------- | -------- | ------------------------- | ------------------------------------ |
-| `TELEGRAM_BOT_TOKEN`      | Telegram bot token from @BotFather | **Yes**  | -                         | `1234567890:ABCdefGHIjklMNOpqrSTUvwx` |
-| `ADMIN_IDS`               | Comma-separated admin user IDs     | **Yes**  | -                         | `"123456789,987654321"`              |
-| `DATABASE_URL`            | PostgreSQL connection string       | **Yes**  | -                         | `postgresql://user:pass@host:5432/db` |
-| `OPENAI_API_KEY`          | OpenAI API key                     | **Yes**  | -                         | `sk-...`                            |
-| `OPENAI_BASE_URL`         | OpenAI API base URL                | No       | `https://api.openai.com/v1` | `http://localhost:11434/v1`         |
-| `SUMMARY_MODEL`           | Model name for summaries           | No       | `gpt-4o-mini`             | `gemma2:27b`, `claude-3-sonnet`     |
-| `IMAGE_MODEL`             | Model name for image analysis      | No       | `gpt-4o-mini`             | `gpt-4o`, `claude-3-sonnet`         |
-| `MENTION_CONTEXT_SIZE`    | Messages to include when mentioned | No       | `30`                      | `50`, `20`                          |
-| `MENTION_CONTEXT_HOURS`   | Hours to look back for context     | No       | `4`                       | `6`, `2`                            |
-| `OLD_MENTION_CONTEXT_SIZE`| Older messages for context         | No       | `10`                      | `15`, `5`                           |
-| `SYSTEM_PROMPT`           | Custom system prompt for summaries | No       | Built-in Italian prompt   | See placeholders section below      |
-| `MENTION_SYSTEM_PROMPT`   | Custom prompt for mention replies  | No       | Built-in Italian prompt   | `"You are a helpful assistant..."`   |
+| Variable                         | Description                                | Required | Default                   | Example                             |
+| -------------------------------- | ------------------------------------------ | -------- | ------------------------- |-------------------------------------|
+| `TELEGRAM_BOT_TOKEN`             | Telegram bot token from @BotFather        | **Yes**  | -                         | `1234567890:ABCdefGHIjklMNOpqrSTUvwx` |
+| `ADMIN_IDS`                      | Comma-separated admin user IDs            | **Yes**  | -                         | `"123456789,987654321"`             |
+| `DATABASE_URL`                   | PostgreSQL connection string              | **Yes**  | -                         | `postgresql://user:pass@host:5432/db` |
+| `OPENAI_API_KEY`                 | OpenAI API key                            | **Yes**  | -                         | `sk-...`                            |
+| `OPENAI_BASE_URL`                | OpenAI API base URL                       | No       | `https://api.openai.com/v1` | `http://localhost:11434/v1`         |
+| `SUMMARY_MODEL`                  | Model name for summaries                  | No       | `gpt-4o-mini`             | `gemma3:27b`      |
+| `IMAGE_MODEL`                    | Model name for image analysis             | No       | `gpt-4o-mini`             | `gemma3:27b`          |
+| `MENTION_CONTEXT_SIZE`           | Messages to include when mentioned        | No       | `30`                      | `50`, `20`                          |
+| `MENTION_CONTEXT_HOURS`          | Hours to look back for context            | No       | `4`                       | `6`, `2`                            |
+| `OLD_MENTION_CONTEXT_SIZE`       | Older messages for context                | No       | `10`                      | `15`, `5`                           |
+| `IMAGE_ANALYSIS_ENABLED`         | Enable/disable image analysis             | No       | `true`                    | `false`                             |
+| `SUMMARY_CHUNK_SIZE`             | Messages per chunk for large summaries    | No       | `70`                      | `100`, `50`                         |
+| `MAX_PARALLEL_CHUNKS`            | Maximum parallel chunks to process        | No       | `2`                       | `4`, `1`                            |
+| `MAX_CONTEXT_TOKENS`             | Maximum context tokens for LLM           | No       | `16000`                   | `32000`, `8000`                     |
+| `CHARS_PER_TOKEN`                | Characters per token estimation           | No       | `4`                       | `3`, `5`                            |
+| `SYSTEM_PROMPT`                  | Custom system prompt for summaries       | No       | Built-in Italian prompt   | See placeholders section below      |
+| `MENTION_SYSTEM_PROMPT`          | Custom prompt for mention replies        | No       | Built-in Italian prompt   | `"You are a helpful assistant..."`  |
+| `CHUNK_SYSTEM_PROMPT`            | Custom prompt for chunk processing       | No       | Built-in Italian prompt   | `"Summarize this chunk..."`         |
+| `META_SUMMARY_SYSTEM_PROMPT`     | Custom prompt for meta-summary           | No       | Built-in Italian prompt   | `"Create final summary..."`         |
+| `SYSTEM_PROMPT_CHUNK_PREAMBLE`   | Custom chunk preamble                    | No       | Built-in Italian prompt   | `"You will receive..."`             |
+| `META_SUMMARY_SYSTEM_PROMPT_SUFFIX` | Custom meta-summary suffix            | No       | Built-in Italian prompt   | `"Ensure final summary..."`         |
 
 ### Getting Required Values
 
@@ -182,6 +204,17 @@ When users mention the bot in a group, these parameters control how the bot resp
 
 Example: If a user mentions the bot, it will analyze the last 30 messages within 4 hours, plus 10 older messages for additional context.
 
+#### Image Analysis Configuration
+- **`IMAGE_ANALYSIS_ENABLED`**: Enable or disable image analysis functionality (default: true)
+
+#### Summary Processing Configuration
+These settings control how large conversations are processed:
+
+- **`SUMMARY_CHUNK_SIZE`**: Number of messages per chunk for large summaries (default: 70)
+- **`MAX_PARALLEL_CHUNKS`**: Maximum number of chunks to process in parallel (default: 2)
+- **`MAX_CONTEXT_TOKENS`**: Maximum context tokens for LLM processing (default: 16000)
+- **`CHARS_PER_TOKEN`**: Characters per token estimation (default: 4)
+
 #### Model Configuration
 - **`SUMMARY_MODEL`**: Model used for generating chat summaries
 - **`IMAGE_MODEL`**: Model used for analyzing images in chat (must support vision)
@@ -191,14 +224,31 @@ You can customize how the bot behaves by setting custom system prompts:
 
 - **`SYSTEM_PROMPT`**: Controls how summaries are generated (default is in Italian)
 - **`MENTION_SYSTEM_PROMPT`**: Controls how the bot responds to mentions (default is in Italian)
+- **`CHUNK_SYSTEM_PROMPT`**: Controls how individual chunks are processed (default is in Italian)
+- **`META_SUMMARY_SYSTEM_PROMPT`**: Controls how final summaries are created from chunks (default is in Italian)
+- **`SYSTEM_PROMPT_CHUNK_PREAMBLE`**: Additional context for chunk processing (default is in Italian)
+- **`META_SUMMARY_SYSTEM_PROMPT_SUFFIX`**: Additional context for meta-summary generation (default is in Italian)
 
 **Note**: The default prompts are in Italian. If you want English responses, you'll need to set custom prompts.
 
 ##### System Prompt Placeholders
-The `SYSTEM_PROMPT` supports the following placeholders that are automatically replaced:
+The custom system prompts support the following placeholders that are automatically replaced:
 
+**`SYSTEM_PROMPT`** placeholders:
 - **`{username}`**: The Telegram username of the user requesting the summary
 - **`{time_range}`**: A description of the time period being summarized (e.g., "last 2 hours", "since your last message")
+
+**`CHUNK_SYSTEM_PROMPT`** placeholders:
+- **`{chunk_index}`**: The current chunk number being processed
+- **`{total_chunks}`**: The total number of chunks in the conversation
+
+**`META_SUMMARY_SYSTEM_PROMPT`** placeholders:
+- **`{num_chunks}`**: The number of chunk summaries being combined
+
+**`META_SUMMARY_SYSTEM_PROMPT_SUFFIX`** placeholders:
+- **`{time_range}`**: A description of the time period being summarized
+
+**`MENTION_SYSTEM_PROMPT`** and **`SYSTEM_PROMPT_CHUNK_PREAMBLE`** do not use placeholders.
 
 Example custom system prompt:
 ```bash
@@ -206,8 +256,6 @@ SYSTEM_PROMPT="You are a helpful assistant that creates summaries for {username}
 Analyze the messages from {time_range} and provide a concise summary.
 Focus on topics that mention or involve {username} directly."
 ```
-
-The `MENTION_SYSTEM_PROMPT` does not use any placeholders and receives the conversation context directly.
 
 ## Usage
 

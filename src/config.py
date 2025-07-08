@@ -95,17 +95,11 @@ Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le ris
         os.getenv("IMAGE_ANALYSIS_ENABLED", "true").lower() == "true"
     )
 
-    # Smart Hybrid Summary Configuration
-    # Message volume thresholds for different processing strategies
-    SMALL_SUMMARY_THRESHOLD: int = int(os.getenv("SMALL_SUMMARY_THRESHOLD", "200"))
-    MEDIUM_SUMMARY_THRESHOLD: int = int(os.getenv("MEDIUM_SUMMARY_THRESHOLD", "1000"))
-
     # Chunk sizes for medium and large summaries
     SUMMARY_CHUNK_SIZE: int = int(os.getenv("SUMMARY_CHUNK_SIZE", "70"))
-    SUMMARY_CHUNK_OVERLAP: int = int(os.getenv("SUMMARY_CHUNK_OVERLAP", "5"))
 
     # Parallel processing configuration
-    MAX_PARALLEL_CHUNKS: int = int(os.getenv("MAX_PARALLEL_CHUNKS", "4"))
+    MAX_PARALLEL_CHUNKS: int = int(os.getenv("MAX_PARALLEL_CHUNKS", "2"))
 
     # Token estimation (rough approximation: 1 token ≈ 4 chars for most models)
     MAX_CONTEXT_TOKENS: int = int(os.getenv("MAX_CONTEXT_TOKENS", "16000"))
@@ -148,11 +142,6 @@ Output di esempio:
         "META_SUMMARY_SYSTEM_PROMPT_SUFFIX",
         """Assicurati che il riassunto finale sia coerente, comprensibile e in ordine cronologico. L'output dovrebbe essere un elenco puntato di argomenti chiave, senza dettagli superflui. Usa la lingua italiana.
         Intervallo temporale: {time_range}""",
-    )
-
-    META_CHUNK_SYSTEM_PROMPT: str = os.getenv(
-        "META_CHUNK_SYSTEM_PROMPT",
-        "Combina questi {num_sections} riassunti di sezione in un unico riassunto coerente. Mantieni le informazioni chiave e tutti gli argomenti.",
     )
 
     @classmethod
