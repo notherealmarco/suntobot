@@ -633,8 +633,8 @@ class SummaryEngine:
         if len(cached_summaries) > 10:
             while len(cached_summaries) > 0:
                 # Take the first 10 cached summaries
-                part_summaries = cached_summaries[:min(10, len(cached_summaries))]
-                cached_summaries = cached_summaries[min(10, len(cached_summaries)):]
+                part_summaries = cached_summaries[: min(10, len(cached_summaries))]
+                cached_summaries = cached_summaries[min(10, len(cached_summaries)) :]
 
                 meta_summary = await self._create_meta_summary(
                     part_summaries,
