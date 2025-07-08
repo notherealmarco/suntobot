@@ -60,6 +60,18 @@ Intervallo temporale: {time_range}
         """,
     )
 
+    SYSTEM_PROMPT_CHUNK_PREAMBLE: str = os.getenv(
+        "SYSTEM_PROMPT_CHUNK_PREAMBLE",
+        """
+        Riceverai sia riassunti parziali pre-generati (contenuto più datato) che messaggi recenti.
+Istruzioni specifiche:
+- Tratta con pari importanza riassunti parziali e messaggi recenti
+- Mantieni l'ordine cronologico complessivo nella sintesi finale
+- Presenta gli argomenti chiave per punti, senza dettagliare
+- I riassunti parziali possono avere formati inconsistenti (generati da LLM) - normalizza il contenuto mantenendo le informazioni essenziali
+        """,
+    )
+
     MENTION_SYSTEM_PROMPT: str = os.getenv(
         "MENTION_SYSTEM_PROMPT",
         """Sei un assistente utile che risponde alle domande degli utenti nei gruppi Telegram. Quando un utente ti menziona, il tuo compito è fornire una risposta utile e pertinente basata sul contesto della conversazione.
@@ -91,7 +103,7 @@ Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le ris
     # Chunk sizes for medium and large summaries
     SUMMARY_CHUNK_SIZE: int = int(os.getenv("SUMMARY_CHUNK_SIZE", "70"))
     SUMMARY_CHUNK_OVERLAP: int = int(os.getenv("SUMMARY_CHUNK_OVERLAP", "5"))
-    
+
     # Parallel processing configuration
     MAX_PARALLEL_CHUNKS: int = int(os.getenv("MAX_PARALLEL_CHUNKS", "4"))
 
@@ -103,11 +115,10 @@ Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le ris
     CHUNK_SYSTEM_PROMPT: str = os.getenv(
         "CHUNK_SYSTEM_PROMPT",
         """Stai riassumendo la parte {chunk_index} di {total_chunks} di una conversazione chat.
-Concentrati su:
-- Argomenti discussi e decisioni prese con i partecipanti chiave
-- Annunci importanti o informazioni
+Istruzioni:
+- Concentrati sugli argomenti discussi, sugli annunci e sulle decisioni prese
 - Mantieni un riassunto molto conciso. Gli argomenti generali sono importanti, ma non i dettagli.
-- Usa elenchi puntati solo per chiarezza, in ordine cronologico
+- Crea un elenco puntato, in ordine cronologico
 - Usa 1-2 frasi per argomento, max 120 caratteri ciascuna
 - Punta a 500 caratteri totali per il tuo output
 
@@ -117,14 +128,26 @@ Output di esempio:
 """,
     )
 
-    META_SUMMARY_PROMPT_SUFFIX: str = os.getenv(
-        "META_SUMMARY_PROMPT_SUFFIX",
+    META_SUMMARY_SYSTEM_PROMPT: str = os.getenv(
+        "META_SUMMARY_SYSTEM_PROMPT",
         """Stai creando un riassunto finale da {num_chunks} riassunti parziali della chat.
-Combinali in una panoramica coerente che:
-- Mantiene il flusso cronologico degli argomenti principali
-- Evidenzia TUTTI gli argomenti discussi
-- Include decisioni chiave e annunci
-- Assicura che nessuna informazione importante vada persa""",
+Istruzioni:
+- Mantieni un riassunto molto conciso. Gli argomenti generali sono importanti, ma non i dettagli.
+- Evidenzia argomenti discussi e decisioni prese
+- Crea un elenco puntato, in ordine cronologico
+- Usa 1-2 frasi per argomento, max 120 caratteri ciascuna
+- Punta a 500 caratteri totali per il tuo output
+- Assicura che nessuna informazione importante vada persa
+
+Output di esempio:
+- Argomento 1: Breve riassunto della discussione
+- Argomento 2: Breve riassunto della discussione""",
+    )
+
+    META_SUMMARY_SYSTEM_PROMPT_SUFFIX = os.getenv(
+        "META_SUMMARY_SYSTEM_PROMPT_SUFFIX",
+        """Assicurati che il riassunto finale sia coerente, comprensibile e in ordine cronologico. L'output dovrebbe essere un elenco puntato di argomenti chiave, senza dettagli superflui. Usa la lingua italiana.
+        Intervallo temporale: {time_range}""",
     )
 
     META_CHUNK_SYSTEM_PROMPT: str = os.getenv(

@@ -391,9 +391,7 @@ class SummaryEngine:
     async def _create_meta_summary(
         self,
         chunk_summaries: List[str],
-        requesting_username: str,
         time_range_desc: str,
-        total_messages: int,
     ) -> str:
         """
         Create a final meta-summary from chunk summaries.
@@ -418,34 +416,28 @@ class SummaryEngine:
         if not valid_summaries:
             return f"Unable to generate summary for {time_range_desc} due to processing errors."
 
-        meta_prompt = Config.SYSTEM_PROMPT.replace(
-            "{username}", requesting_username
-        ).replace(
-            "{time_range}", time_range_desc
-        ) + Config.META_SUMMARY_PROMPT_SUFFIX.format(
-            num_chunks=len(valid_summaries), username=requesting_username
-        )
-
         chunks_text = "\n\n".join(
             [f"Part {i + 1}: {summary}" for i, summary in enumerate(valid_summaries)]
         )
-
-        formatted_input = f"""Summary Request for @{requesting_username}
-Time Period: {time_range_desc}
-Total Messages Processed: {total_messages}
-Number of Summary Parts: {len(valid_summaries)}
-
-Partial Summaries to Combine:
-{chunks_text}
-
-Please create a final comprehensive summary that combines all parts."""
 
         try:
             response = await self.client.chat.completions.create(
                 model=Config.SUMMARY_MODEL,
                 messages=[
-                    {"role": "system", "content": meta_prompt},
-                    {"role": "user", "content": formatted_input},
+                    {
+                        "role": "system",
+                        "content": Config.META_SUMMARY_SYSTEM_PROMPT.format(
+                            num_chunks=len(valid_summaries)
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": chunks_text
+                        + "\n\n"
+                        + Config.META_SUMMARY_SYSTEM_PROMPT_SUFFIX.format(
+                            time_range=time_range_desc
+                        ),
+                    },
                 ],
             )
 
@@ -461,43 +453,47 @@ Please create a final comprehensive summary that combines all parts."""
     async def ensure_chunks_processed(self, chat_id: int) -> int:
         """
         Ensure at most SUMMARY_CHUNK_SIZE messages remain unprocessed.
-        
+
         Simple logic with parallel processing:
         1. Get all unprocessed messages
         2. If >= 70 unprocessed, process multiple chunks in parallel (up to MAX_PARALLEL_CHUNKS)
         3. Repeat until < 70 unprocessed messages remain
-        
+
         Returns:
             Number of new chunks processed
         """
-        
+
         chunks_processed = 0
-        
+
         while True:
             unprocessed_messages = await self._get_unprocessed_messages(chat_id)
-            
+
             if len(unprocessed_messages) < Config.SUMMARY_CHUNK_SIZE:
                 break
-                
+
             # Determine how many chunks we can process in parallel
             num_possible_chunks = len(unprocessed_messages) // Config.SUMMARY_CHUNK_SIZE
             num_chunks_to_process = min(num_possible_chunks, Config.MAX_PARALLEL_CHUNKS)
-            
+
             # Create tasks for parallel processing
             tasks = []
             for i in range(num_chunks_to_process):
                 start_idx = i * Config.SUMMARY_CHUNK_SIZE
                 end_idx = start_idx + Config.SUMMARY_CHUNK_SIZE
                 chunk_to_process = unprocessed_messages[start_idx:end_idx]
-                
-                task = self._process_and_cache_chunk(chat_id, chunk_to_process, chunks_processed + i)
+
+                task = self._process_and_cache_chunk(
+                    chat_id, chunk_to_process, chunks_processed + i
+                )
                 tasks.append(task)
-            
-            logger.info(f"Processing {num_chunks_to_process} chunks in parallel for chat {chat_id}")
-            
+
+            logger.info(
+                f"Processing {num_chunks_to_process} chunks in parallel for chat {chat_id}"
+            )
+
             # Execute all chunks in parallel
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            
+
             # Count successful chunks
             successful_chunks = 0
             for i, result in enumerate(results):
@@ -505,13 +501,15 @@ Please create a final comprehensive summary that combines all parts."""
                     logger.error(f"Failed to process chunk {i}: {result}")
                 else:
                     successful_chunks += 1
-                    
+
             chunks_processed += successful_chunks
-            logger.info(f"Successfully processed {successful_chunks}/{num_chunks_to_process} chunks")
-            
+            logger.info(
+                f"Successfully processed {successful_chunks}/{num_chunks_to_process} chunks"
+            )
+
         if chunks_processed > 0:
             logger.info(f"Processed {chunks_processed} new chunks for chat {chat_id}")
-            
+
         return chunks_processed
 
     async def _get_unprocessed_messages(self, chat_id: int) -> List[Message]:
@@ -523,13 +521,13 @@ Please create a final comprehensive summary that combines all parts."""
         all_messages = self.db_manager.get_recent_messages(chat_id, limit=50000)
         if not all_messages:
             return []
-            
-        # Get all cached chunks for this chat  
+
+        # Get all cached chunks for this chat
         cached_chunks = self.db_manager.get_cached_chunks_for_chat(chat_id)
         if not cached_chunks:
             # No cached chunks, all messages are unprocessed
             return sorted(all_messages, key=lambda m: m.message_id)
-            
+
         # Find messages not covered by any cached chunk
         unprocessed = []
         for message in all_messages:
@@ -540,22 +538,31 @@ Please create a final comprehensive summary that combines all parts."""
                     break
             if not is_covered:
                 unprocessed.append(message)
-                
+
         return sorted(unprocessed, key=lambda m: m.message_id)
 
-    async def _get_unprocessed_messages_in_range(self, chat_id: int, start_message_id: int, end_message_id: int) -> List[Message]:
+    async def _get_unprocessed_messages_in_range(
+        self, chat_id: int, start_message_id: int, end_message_id: int
+    ) -> List[Message]:
         """
         Get unprocessed messages within a specific message ID range.
         """
         unprocessed_messages = await self._get_unprocessed_messages(chat_id)
-        
+
         # Filter to only messages in the requested range
         return [
-            msg for msg in unprocessed_messages 
+            msg
+            for msg in unprocessed_messages
             if start_message_id <= msg.message_id <= end_message_id
         ]
 
-    async def _create_final_summary(self, combined_content: str, requesting_username: str, time_range_desc: str, message_count: int) -> str:
+    async def _create_final_summary(
+        self,
+        combined_content: str,
+        requesting_username: str,
+        time_range_desc: str,
+        message_count: int,
+    ) -> str:
         """
         Create a final summary from combined cached summaries and raw content.
         """
@@ -563,28 +570,21 @@ Please create a final comprehensive summary that combines all parts."""
             # Use the proper Config system prompt for final summaries
             system_prompt = Config.SYSTEM_PROMPT.replace(
                 "{username}", requesting_username
-            ).replace(
-                "{time_range}", time_range_desc
-            )
-            
+            ).replace("{time_range}", time_range_desc)
+
             response = await self.client.chat.completions.create(
                 model=Config.SUMMARY_MODEL,
                 messages=[
+                    {"role": "system", "content": system_prompt},
                     {
-                        "role": "system",
-                        "content": system_prompt
+                        "role": "user",
+                        "content": f"{Config.SYSTEM_PROMPT_CHUNK_PREAMBLE + '\n\n'}Partial summaries for period {time_range_desc}:\n{combined_content}",
                     },
-                    {
-                        "role": "user", 
-                        "content": f"Riassunto per il periodo: {time_range_desc}\n\n"
-                                   f"Totale messaggi: {message_count}\n\n"
-                                   f"Contenuto da riassumere:\n{combined_content}"
-                    }
-                ]
+                ],
             )
 
             return response.choices[0].message.content.strip()
-            
+
         except Exception as e:
             logger.error(f"Failed to create final summary: {e}")
             return f"Summary for {time_range_desc} ({message_count} messages):\n\n{combined_content}"
@@ -598,51 +598,79 @@ Please create a final comprehensive summary that combines all parts."""
         2. Use cached summaries for processed messages + raw text for unprocessed tail
         """
         if not messages:
-            return f"No messages found in the specified time period ({time_range_desc})."
+            return (
+                f"No messages found in the specified time period ({time_range_desc})."
+            )
 
         chat_id = messages[0].chat_id
-        logger.info(f"Generating smart summary for {len(messages)} messages in chat {chat_id}")
+        logger.info(
+            f"Generating smart summary for {len(messages)} messages in chat {chat_id}"
+        )
 
         # Ensure chunks are processed first
         await self.ensure_chunks_processed(chat_id)
-        
+
         # Get the message range we need to summarize
         start_message_id = messages[0].message_id
         end_message_id = messages[-1].message_id
-        
+
         # Get cached summaries that cover part of this range
         cached_summaries = []
-        cached_chunks = self.db_manager.get_cached_chunks_for_range(chat_id, start_message_id, end_message_id)
+        cached_chunks = self.db_manager.get_cached_chunks_for_range(
+            chat_id, start_message_id, end_message_id
+        )
         for chunk in cached_chunks:
             cached_summaries.append(chunk.summary_text)
-            
+
         # Get unprocessed messages in this range
-        unprocessed_messages = await self._get_unprocessed_messages_in_range(chat_id, start_message_id, end_message_id)
-        
+        unprocessed_messages = await self._get_unprocessed_messages_in_range(
+            chat_id, start_message_id, end_message_id
+        )
+
         # Build the final content
         content_parts = []
-        
+
+        if len(cached_summaries) > 10:
+            while len(cached_summaries) > 0:
+                # Take the first 10 cached summaries
+                part_summaries = cached_summaries[:min(10, len(cached_summaries))]
+                cached_summaries = cached_summaries[min(10, len(cached_summaries)):]
+
+                meta_summary = await self._create_meta_summary(
+                    part_summaries,
+                    time_range_desc,
+                )
+                content_parts.append(meta_summary)
+
         if cached_summaries:
             content_parts.extend(cached_summaries)
             logger.info(f"Using {len(cached_summaries)} cached summaries")
-            
+
         if unprocessed_messages:
             # Add raw unprocessed messages
-            raw_content = self._format_messages_for_llm(unprocessed_messages, requesting_username, "recent messages")
+            raw_content = self._format_messages_for_llm(
+                unprocessed_messages, requesting_username, time_range_desc
+            )
             content_parts.append(f"Recent messages:\n{raw_content}")
             logger.info(f"Including {len(unprocessed_messages)} unprocessed messages")
-        
+
         if not content_parts:
-            return f"No content found for the specified time period ({time_range_desc})."
-            
+            return (
+                f"No content found for the specified time period ({time_range_desc})."
+            )
+
         # Generate final summary
         if len(content_parts) == 1 and not cached_summaries:
             # Only unprocessed messages - use simple approach
-            return await self._generate_simple_summary(messages, requesting_username, time_range_desc)
+            return await self._generate_simple_summary(
+                messages, requesting_username, time_range_desc
+            )
         else:
             # Combine cached + unprocessed content
             combined_content = "\n\n".join(content_parts)
-            return await self._create_final_summary(combined_content, requesting_username, time_range_desc, len(messages))
+            return await self._create_final_summary(
+                combined_content, requesting_username, time_range_desc, len(messages)
+            )
 
     async def generate_summary(
         self, messages: List[Message], requesting_username: str, time_range_desc: str
@@ -696,14 +724,7 @@ Please create a final comprehensive summary that combines all parts."""
     def _format_messages_for_llm(
         self, messages: List[Message], requesting_username: str, time_range_desc: str
     ) -> str:
-        formatted_lines = [
-            "Chat Summary Request",
-            f"Requesting User: @{requesting_username}",
-            f"Time Period: {time_range_desc}",
-            f"Total Messages: {len(messages)}",
-            "",
-            "Messages:",
-        ]
+        formatted_lines = []
 
         for message in messages:
             username = message.username or f"user_{message.user_id}"
@@ -736,6 +757,10 @@ Please create a final comprehensive summary that combines all parts."""
                 )
             else:
                 formatted_lines.append(f"[{timestamp}] {username}: {content_line}")
+
+        formatted_lines.append(f"\nRequesting User: @{requesting_username}")
+        if time_range_desc != "":
+            formatted_lines.append(f"Time Period: {time_range_desc}")
 
         return "\n".join(formatted_lines)
 
@@ -836,7 +861,7 @@ Please create a final comprehensive summary that combines all parts."""
         """
         Pre-warm the cache by processing chunks when needed.
         This should be called after new messages are added to a chat.
-        
+
         Returns:
             Number of chunks processed
         """
@@ -850,12 +875,12 @@ Please create a final comprehensive summary that combines all parts."""
         """
         if not messages:
             return ""
-            
+
         logger.info(f"Generating summary for chunk of {len(messages)} messages")
-        
+
         # Format messages for LLM
-        formatted_content = self._format_messages_for_llm(messages, "system", "chunk summary")
-        
+        formatted_content = self._format_messages_for_llm(messages, "system", "")
+
         while True:
             try:
                 # Generate summary using OpenAI with proper Config prompt
@@ -863,23 +888,19 @@ Please create a final comprehensive summary that combines all parts."""
                     model=Config.SUMMARY_MODEL,
                     messages=[
                         {
-                            "role": "system", 
+                            "role": "system",
                             "content": Config.CHUNK_SYSTEM_PROMPT.format(
-                                chunk_index=1,
-                                total_chunks=1
-                            )
+                                chunk_index=1, total_chunks=1
+                            ),
                         },
-                        {
-                            "role": "user",
-                            "content": formatted_content
-                        }
-                    ]
+                        {"role": "user", "content": formatted_content},
+                    ],
                 )
-                
+
                 summary = response.choices[0].message.content.strip()
                 logger.info("Successfully generated chunk summary")
                 return summary
-                
+
             except Exception as e:
                 logger.error(f"Failed to generate chunk summary: {e}, retrying")
                 await asyncio.sleep(5)
@@ -912,37 +933,43 @@ Please create a final comprehensive summary that combines all parts."""
             logger.error(f"Failed to generate simple summary: {e}")
             return f"Failed to generate summary: {str(e)}"
 
-    async def _process_and_cache_chunk(self, chat_id: int, chunk_messages: List[Message], chunk_index: int) -> str:
+    async def _process_and_cache_chunk(
+        self, chat_id: int, chunk_messages: List[Message], chunk_index: int
+    ) -> str:
         """
         Process a single chunk of messages and cache the result.
-        
+
         Args:
             chat_id: Chat ID
             chunk_messages: Messages to process
             chunk_index: Index of this chunk (for logging)
-            
+
         Returns:
             The generated summary
         """
         if not chunk_messages:
             return ""
-            
-        logger.info(f"Processing chunk {chunk_index + 1} of {len(chunk_messages)} messages ({chunk_messages[0].message_id}-{chunk_messages[-1].message_id}) for chat {chat_id}")
-        
+
+        logger.info(
+            f"Processing chunk {chunk_index + 1} of {len(chunk_messages)} messages ({chunk_messages[0].message_id}-{chunk_messages[-1].message_id}) for chat {chat_id}"
+        )
+
         # Generate summary
         summary = await self._generate_chunk_summary(chunk_messages)
-        
+
         # Cache the summary
-        chunk_id = f"{chat_id}_{chunk_messages[0].message_id}_{chunk_messages[-1].message_id}"
+        chunk_id = (
+            f"{chat_id}_{chunk_messages[0].message_id}_{chunk_messages[-1].message_id}"
+        )
         self.db_manager.store_chunk_summary(
             chunk_id=chunk_id,
             chat_id=chat_id,
             start_message_id=chunk_messages[0].message_id,
             end_message_id=chunk_messages[-1].message_id,
             message_count=len(chunk_messages),
-            summary_text=summary
+            summary_text=summary,
         )
-        
+
         logger.info(f"Cached chunk {chunk_index + 1}: {chunk_id}")
         return summary
 
@@ -952,37 +979,41 @@ Please create a final comprehensive summary that combines all parts."""
         This ensures that any backlog of unprocessed messages gets handled.
         """
         logger.info("Starting chunk processing initialization for all chats...")
-        
+
         try:
             # Get all chat IDs that have messages
             chat_ids = self.db_manager.get_all_chat_ids()
-            
+
             if not chat_ids:
                 logger.info("No chats found for initialization")
                 return
-                
+
             logger.info(f"Found {len(chat_ids)} chats to initialize")
-            
+
             # Process chunks for each chat
             total_chunks_processed = 0
             successful_chats = 0
-            
+
             for chat_id in chat_ids:
                 try:
                     chunks_processed = await self.ensure_chunks_processed(chat_id)
                     total_chunks_processed += chunks_processed
                     successful_chats += 1
-                    
+
                     if chunks_processed > 0:
-                        logger.info(f"Chat {chat_id}: processed {chunks_processed} chunks")
+                        logger.info(
+                            f"Chat {chat_id}: processed {chunks_processed} chunks"
+                        )
                     else:
                         logger.debug(f"Chat {chat_id}: no chunks needed processing")
-                        
+
                 except Exception as e:
                     logger.error(f"Failed to initialize chat {chat_id}: {e}")
                     continue
-                    
-            logger.info(f"Initialization complete: processed {total_chunks_processed} chunks across {successful_chats}/{len(chat_ids)} chats")
-            
+
+            logger.info(
+                f"Initialization complete: processed {total_chunks_processed} chunks across {successful_chats}/{len(chat_ids)} chats"
+            )
+
         except Exception as e:
             logger.error(f"Failed during startup initialization: {e}")

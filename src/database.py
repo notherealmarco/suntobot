@@ -406,11 +406,7 @@ class DatabaseManager:
         session = self.get_session()
         try:
             # Get distinct chat IDs from messages table
-            chat_ids = (
-                session.query(Message.chat_id)
-                .distinct()
-                .all()
-            )
+            chat_ids = session.query(Message.chat_id).distinct().all()
             return [chat_id[0] for chat_id in chat_ids]
         finally:
             session.close()

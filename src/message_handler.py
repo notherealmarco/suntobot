@@ -151,6 +151,10 @@ class MessageHandler:
         # Check for bot mentions after saving the message
         await self._handle_bot_mention(message, context)
 
+        # check if we need to generate a summary
+        if message_id % 10 == 0:  # todo change triggering logic
+            await self.summary_engine.ensure_chunks_processed(chat_id)
+
     async def _process_image(self, message, context) -> str:
         """Process image in memory and return description."""
         # Get the largest photo size
