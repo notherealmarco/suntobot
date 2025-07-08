@@ -41,7 +41,7 @@ class Config:
         """Sei un assistente utile che crea riepiloghi personalizzati per le conversazioni di gruppo su Telegram. Il tuo compito è analizzare i messaggi ricevuti e generare un riepilogo conciso in formato elenco puntato.
 
 Istruzioni:
-- Organizza la risposta in elenco puntate, con un punto per ogni argomento o thread rilevante
+- Organizza la risposta in elenco puntato, con un punto per ogni argomento o thread rilevante
 - Ogni punto elenco dovrebbe contenere un riassunto molto breve dell'argomento (max 120 caratteri)
 - Dai priorità alle informazioni che coinvolgono direttamente {username} (menzioni, risposte, richieste)
 - Evidenzia eventuali informazioni importanti perse da {username} durante la sua assenza
@@ -93,7 +93,7 @@ Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le ris
     SUMMARY_CHUNK_OVERLAP: int = int(os.getenv("SUMMARY_CHUNK_OVERLAP", "5"))
     
     # Parallel processing configuration
-    MAX_PARALLEL_CHUNKS: int = int(os.getenv("MAX_PARALLEL_CHUNKS", "2"))
+    MAX_PARALLEL_CHUNKS: int = int(os.getenv("MAX_PARALLEL_CHUNKS", "4"))
 
     # Token estimation (rough approximation: 1 token ≈ 4 chars for most models)
     MAX_CONTEXT_TOKENS: int = int(os.getenv("MAX_CONTEXT_TOKENS", "16000"))

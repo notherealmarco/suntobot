@@ -856,32 +856,33 @@ Please create a final comprehensive summary that combines all parts."""
         # Format messages for LLM
         formatted_content = self._format_messages_for_llm(messages, "system", "chunk summary")
         
-        try:
-            # Generate summary using OpenAI with proper Config prompt
-            response = await self.client.chat.completions.create(
-                model=Config.SUMMARY_MODEL,
-                messages=[
-                    {
-                        "role": "system", 
-                        "content": Config.CHUNK_SYSTEM_PROMPT.format(
-                            chunk_index=1,
-                            total_chunks=1
-                        )
-                    },
-                    {
-                        "role": "user",
-                        "content": formatted_content
-                    }
-                ]
-            )
-            
-            summary = response.choices[0].message.content.strip()
-            logger.info("Successfully generated chunk summary")
-            return summary
-            
-        except Exception as e:
-            logger.error(f"Failed to generate chunk summary: {e}")
-            return f"Summary of {len(messages)} messages (failed to generate detailed summary)"
+        while True:
+            try:
+                # Generate summary using OpenAI with proper Config prompt
+                response = await self.client.chat.completions.create(
+                    model=Config.SUMMARY_MODEL,
+                    messages=[
+                        {
+                            "role": "system", 
+                            "content": Config.CHUNK_SYSTEM_PROMPT.format(
+                                chunk_index=1,
+                                total_chunks=1
+                            )
+                        },
+                        {
+                            "role": "user",
+                            "content": formatted_content
+                        }
+                    ]
+                )
+                
+                summary = response.choices[0].message.content.strip()
+                logger.info("Successfully generated chunk summary")
+                return summary
+                
+            except Exception as e:
+                logger.error(f"Failed to generate chunk summary: {e}, retrying")
+                await asyncio.sleep(5)
 
     async def _generate_simple_summary(
         self, messages: List[Message], requesting_username: str, time_range_desc: str
