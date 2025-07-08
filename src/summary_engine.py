@@ -375,11 +375,11 @@ def sanitize_html(text: str) -> str:
 
 
 class SummaryEngine:
-    def __init__(self, db_manager=None):
+    def __init__(self, db_manager):
         self.client = openai.AsyncOpenAI(
             api_key=Config.OPENAI_API_KEY, base_url=Config.OPENAI_BASE_URL
         )
-        self.chunk_cache_manager = ChunkCacheManager(db_manager) if db_manager else None
+        self.chunk_cache_manager = ChunkCacheManager(db_manager)
 
     def _estimate_tokens(self, text: str) -> int:
         """Rough estimation of token count based on character count."""
@@ -553,7 +553,7 @@ Please create a final comprehensive summary that combines all parts."""
     ) -> str:
         """
         Generate summary using Smart Hybrid approach based on message volume.
-        Now with cache-aware processing for improved performance.
+        Uses cache-aware processing for improved performance.
 
         Args:
             messages: List of messages to summarize
@@ -578,28 +578,10 @@ Please create a final comprehensive summary that combines all parts."""
                 messages, requesting_username, time_range_desc
             )
 
-        # Medium/Large volume: Use cache-aware chunking if cache manager is available
-        elif self.chunk_cache_manager:
+        # Medium/Large volume: Use cache-aware chunking
+        else:
             logger.info(f"Using cache-aware processing for {message_count} messages")
             return await self._generate_cache_aware_summary(
-                messages, requesting_username, time_range_desc
-            )
-
-        # Fallback to old chunking approach if no cache manager
-        elif message_count <= Config.MEDIUM_SUMMARY_THRESHOLD:
-            logger.info(
-                f"Using chunked processing for {message_count} messages (no cache)"
-            )
-            return await self._generate_chunked_summary(
-                messages, requesting_username, time_range_desc
-            )
-
-        # Large volume fallback
-        else:
-            logger.info(
-                f"Using progressive processing for {message_count} messages (no cache)"
-            )
-            return await self._generate_progressive_summary(
                 messages, requesting_username, time_range_desc
             )
 
@@ -615,12 +597,6 @@ Please create a final comprehensive summary that combines all parts."""
         3. Only processes uncovered message ranges
         4. Combines cached and live summaries
         """
-        if not self.chunk_cache_manager:
-            # Fallback to regular chunked summary
-            return await self._generate_chunked_summary(
-                messages, requesting_username, time_range_desc
-            )
-
         # Sort messages by message_id to ensure deterministic processing
         sorted_messages = sorted(messages, key=lambda m: m.message_id)
 
@@ -781,10 +757,24 @@ Please create a final comprehensive summary that combines all parts."""
         if len(all_summaries) == len(overlapping_chunks):
             logger.info("All content was served from cache - no new processing needed")
 
-        # Create final meta-summary from all summaries
-        return await self._create_meta_summary(
-            all_summaries, requesting_username, time_range_desc, len(sorted_messages)
-        )
+        # Check if we need progressive summarization before processing
+        total_summary_chars = sum(len(summary) for summary in all_summaries)
+        max_chars_for_meta_summary = (
+            Config.MAX_CONTEXT_TOKENS * Config.CHARS_PER_TOKEN // 2
+        )  # Use half of max tokens for conservative margin
+
+        if total_summary_chars > max_chars_for_meta_summary:
+            logger.info(
+                f"Using progressive summarization: {len(all_summaries)} summaries with {total_summary_chars} chars exceed {max_chars_for_meta_summary} char limit"
+            )
+            return await self._apply_progressive_summarization(
+                all_summaries, requesting_username, time_range_desc, len(sorted_messages)
+            )
+        else:
+            # Create final meta-summary from all summaries
+            return await self._create_meta_summary(
+                all_summaries, requesting_username, time_range_desc, len(sorted_messages)
+            )
 
     async def _process_chunks_with_boundaries(
         self,
@@ -913,9 +903,9 @@ Please create a final comprehensive summary that combines all parts."""
             estimated_tokens > Config.MAX_CONTEXT_TOKENS * 0.8
         ):  # Use 80% of limit as safety margin
             logger.warning(
-                f"Simple summary approaching token limit ({estimated_tokens} tokens), falling back to chunked"
+                f"Simple summary approaching token limit ({estimated_tokens} tokens), falling back to cache-aware"
             )
-            return await self._generate_chunked_summary(
+            return await self._generate_cache_aware_summary(
                 messages, requesting_username, time_range_desc
             )
 
@@ -937,153 +927,103 @@ Please create a final comprehensive summary that combines all parts."""
 
         except Exception as e:
             logger.error(f"Failed to generate simple summary: {e}")
-            # Fallback to chunked approach
-            return await self._generate_chunked_summary(
+            # Fallback to cache-aware approach
+            return await self._generate_cache_aware_summary(
                 messages, requesting_username, time_range_desc
             )
 
-    async def _generate_chunked_summary(
-        self, messages: List[Message], requesting_username: str, time_range_desc: str
+    async def _apply_progressive_summarization(
+        self,
+        summaries: List[str],
+        requesting_username: str,
+        time_range_desc: str,
+        total_messages: int,
     ) -> str:
-        """Generate summary using overlapping chunks for medium message volumes."""
-        # Use the existing chunk cache manager instead of creating a new one
-        if not self.chunk_cache_manager:
-            logger.warning("No chunk cache manager available, processing without cache")
-            return await self._generate_simple_summary(
-                messages, requesting_username, time_range_desc
-            )
-
-        # Calculate chunk boundaries
-        boundaries = self.chunk_cache_manager.calculate_chunk_boundaries(
-            messages, Config.SUMMARY_CHUNK_SIZE, Config.SUMMARY_CHUNK_OVERLAP
-        )
-        logger.info(f"Calculated {len(boundaries)} chunk boundaries")
-
-        # Check cache for existing summaries
-        chat_id = messages[0].chat_id if messages else 0
-        cached_chunks = self.chunk_cache_manager.get_cached_chunks(chat_id, boundaries)
-
-        # Process chunks with caching
-        chunk_summaries = await self._process_chunks_with_boundaries(
-            messages,
-            boundaries,
-            chat_id,
-            should_cache=True,
-            cached_chunks=cached_chunks,
-        )
-
-        return await self._create_meta_summary(
-            chunk_summaries, requesting_username, time_range_desc, len(messages)
-        )
-
-    async def _generate_progressive_summary(
-        self, messages: List[Message], requesting_username: str, time_range_desc: str
-    ) -> str:
-        """Generate summary using progressive approach for large message volumes."""
-        # For very large volumes, use larger chunks to reduce API calls
-        large_chunk_size = Config.SUMMARY_CHUNK_SIZE * 2
-
-        if not self.chunk_cache_manager:
-            # Fallback to simple approach if no cache manager
-            logger.warning("No chunk cache manager available for progressive summary")
-            return await self._generate_simple_summary(
-                messages, requesting_username, time_range_desc
-            )
-
-        # Calculate boundaries with larger chunks
-        boundaries = self.chunk_cache_manager.calculate_chunk_boundaries(
-            messages, large_chunk_size, Config.SUMMARY_CHUNK_OVERLAP
-        )
-        logger.info(f"Created {len(boundaries)} large chunks for progressive summary")
-
-        # First pass: Summarize each large chunk (don't cache these large chunks)
-        chat_id = messages[0].chat_id if messages else 0
-        chunk_summaries = await self._process_chunks_with_boundaries(
-            messages, boundaries, chat_id, should_cache=False
-        )
-
-        # If we have too much content in chunk summaries, do a second pass
-        total_summary_chars = sum(len(summary) for summary in chunk_summaries)
+        """
+        Apply progressive summarization when dealing with very large datasets.
+        Groups summaries into meta-chunks and summarizes them separately.
+        """
+        total_summary_chars = sum(len(summary) for summary in summaries)
         max_chars_for_meta_summary = (
             Config.MAX_CONTEXT_TOKENS * Config.CHARS_PER_TOKEN // 2
         )  # Use half of max tokens for conservative margin
 
-        if total_summary_chars > max_chars_for_meta_summary:
-            estimated_tokens = total_summary_chars // Config.CHARS_PER_TOKEN
-            logger.info(
-                f"Performing second-level summarization: {len(chunk_summaries)} summaries with {total_summary_chars} chars (~{estimated_tokens} tokens) exceed {max_chars_for_meta_summary} char limit"
+        if total_summary_chars <= max_chars_for_meta_summary:
+            # Not large enough to require progressive summarization
+            return await self._create_meta_summary(
+                summaries, requesting_username, time_range_desc, total_messages
             )
 
-            # Group chunk summaries into meta-chunks based on character count
-            meta_chunks = []
-            current_meta_chunk = []
-            current_char_count = 0
-            target_chars_per_meta_chunk = (
-                max_chars_for_meta_summary // 4
-            )  # Aim for 4 meta-chunks initially
+        estimated_tokens = total_summary_chars // Config.CHARS_PER_TOKEN
+        logger.info(
+            f"Performing progressive summarization: {len(summaries)} summaries with {total_summary_chars} chars (~{estimated_tokens} tokens) exceed {max_chars_for_meta_summary} char limit"
+        )
 
-            for summary in chunk_summaries:
-                summary_chars = len(summary)
+        # Group summaries into meta-chunks based on character count
+        meta_chunks = []
+        current_meta_chunk = []
+        current_char_count = 0
+        target_chars_per_meta_chunk = (
+            max_chars_for_meta_summary // 4
+        )  # Aim for 4 meta-chunks initially
 
-                # If adding this summary would exceed our target, start a new meta-chunk
-                if (
-                    current_char_count + summary_chars > target_chars_per_meta_chunk
-                    and current_meta_chunk
-                ):
-                    meta_chunks.append(current_meta_chunk)
-                    current_meta_chunk = [summary]
-                    current_char_count = summary_chars
-                else:
-                    current_meta_chunk.append(summary)
-                    current_char_count += summary_chars
+        for summary in summaries:
+            summary_chars = len(summary)
 
-            # Add the last meta-chunk if it has content
-            if current_meta_chunk:
+            # If adding this summary would exceed our target, start a new meta-chunk
+            if (
+                current_char_count + summary_chars > target_chars_per_meta_chunk
+                and current_meta_chunk
+            ):
                 meta_chunks.append(current_meta_chunk)
+                current_meta_chunk = [summary]
+                current_char_count = summary_chars
+            else:
+                current_meta_chunk.append(summary)
+                current_char_count += summary_chars
 
-            # Summarize each meta-chunk
-            meta_summaries = []
-            for i, meta_chunk in enumerate(meta_chunks):
-                meta_chunk_chars = sum(len(s) for s in meta_chunk)
-                estimated_tokens = meta_chunk_chars // Config.CHARS_PER_TOKEN
-                logger.info(
-                    f"Processing meta-chunk {i + 1}/{len(meta_chunks)} with {len(meta_chunk)} summaries ({meta_chunk_chars} chars, ~{estimated_tokens} tokens)"
+        # Add the last meta-chunk if it has content
+        if current_meta_chunk:
+            meta_chunks.append(current_meta_chunk)
+
+        # Summarize each meta-chunk
+        meta_summaries = []
+        for i, meta_chunk in enumerate(meta_chunks):
+            meta_chunk_chars = sum(len(s) for s in meta_chunk)
+            estimated_tokens = meta_chunk_chars // Config.CHARS_PER_TOKEN
+            logger.info(
+                f"Processing meta-chunk {i + 1}/{len(meta_chunks)} with {len(meta_chunk)} summaries ({meta_chunk_chars} chars, ~{estimated_tokens} tokens)"
+            )
+
+            combined_text = "\n\n".join(
+                [f"Section {j + 1}: {summary}" for j, summary in enumerate(meta_chunk)]
+            )
+
+            try:
+                response = await self.client.chat.completions.create(
+                    model=Config.SUMMARY_MODEL,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": Config.META_CHUNK_SYSTEM_PROMPT.format(
+                                num_sections=len(meta_chunk)
+                            ),
+                        },
+                        {"role": "user", "content": combined_text},
+                    ],
                 )
 
-                combined_text = "\n\n".join(
-                    [
-                        f"Section {j + 1}: {summary}"
-                        for j, summary in enumerate(meta_chunk)
-                    ]
-                )
+                meta_summary = response.choices[0].message.content.strip()
+                meta_summaries.append(meta_summary)
 
-                try:
-                    response = await self.client.chat.completions.create(
-                        model=Config.SUMMARY_MODEL,
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": Config.META_CHUNK_SYSTEM_PROMPT.format(
-                                    num_sections=len(meta_chunk)
-                                ),
-                            },
-                            {"role": "user", "content": combined_text},
-                        ],
-                    )
+            except Exception as e:
+                logger.error(f"Failed to create meta-chunk summary {i}: {e}")
+                # Fallback: just combine the summaries with basic formatting
+                meta_summaries.append(" | ".join(meta_chunk))
 
-                    meta_summary = response.choices[0].message.content.strip()
-                    meta_summaries.append(meta_summary)
-
-                except Exception as e:
-                    logger.error(f"Failed to create meta-chunk summary {i}: {e}")
-                    # Fallback: just combine the summaries with basic formatting
-                    meta_summaries.append(" | ".join(meta_chunk))
-
-            # Use meta-summaries for final summary
-            chunk_summaries = meta_summaries
-
+        # Create final summary from meta-summaries
         return await self._create_meta_summary(
-            chunk_summaries, requesting_username, time_range_desc, len(messages)
+            meta_summaries, requesting_username, time_range_desc, total_messages
         )
 
     async def generate_summary(
