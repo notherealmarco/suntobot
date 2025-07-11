@@ -121,7 +121,7 @@ class MessageHandler:
                 forward_from_username = message.forward_origin.sender_user_name
 
         # Handle images
-        if message.photo:
+        if message.photo and Config.IMAGE_ANALYSIS_ENABLED:
             has_photo = True
             try:
                 # Process image in memory and get description
@@ -129,6 +129,8 @@ class MessageHandler:
                 logger.info(f"Image analyzed: {image_description}")
             except Exception as e:
                 logger.error(f"Failed to process/analyze image: {e}")
+        elif message.photo and not Config.IMAGE_ANALYSIS_ENABLED:
+            image_description = None
 
         # Save message to database
         try:

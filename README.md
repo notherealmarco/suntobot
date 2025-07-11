@@ -60,8 +60,6 @@ IMAGE_ANALYSIS_ENABLED=true
 # Optional: Summary processing configuration
 SUMMARY_CHUNK_SIZE=70
 MAX_PARALLEL_CHUNKS=2
-MAX_CONTEXT_TOKENS=16000
-CHARS_PER_TOKEN=4
 
 # Optional: Custom system prompts (uncomment to use)
 # SYSTEM_PROMPT="Your custom summary prompt..."
@@ -146,8 +144,6 @@ All configuration is done through environment variables in the `.env` file:
 | `IMAGE_ANALYSIS_ENABLED`         | Enable/disable image analysis             | No       | `true`                    | `false`                             |
 | `SUMMARY_CHUNK_SIZE`             | Messages per chunk for large summaries    | No       | `70`                      | `100`, `50`                         |
 | `MAX_PARALLEL_CHUNKS`            | Maximum parallel chunks to process        | No       | `2`                       | `4`, `1`                            |
-| `MAX_CONTEXT_TOKENS`             | Maximum context tokens for LLM           | No       | `16000`                   | `32000`, `8000`                     |
-| `CHARS_PER_TOKEN`                | Characters per token estimation           | No       | `4`                       | `3`, `5`                            |
 | `SYSTEM_PROMPT`                  | Custom system prompt for summaries       | No       | Built-in Italian prompt   | See placeholders section below      |
 | `MENTION_SYSTEM_PROMPT`          | Custom prompt for mention replies        | No       | Built-in Italian prompt   | `"You are a helpful assistant..."`  |
 | `CHUNK_SYSTEM_PROMPT`            | Custom prompt for chunk processing       | No       | Built-in Italian prompt   | `"Summarize this chunk..."`         |
@@ -212,8 +208,6 @@ These settings control how large conversations are processed:
 
 - **`SUMMARY_CHUNK_SIZE`**: Number of messages per chunk for large summaries (default: 70)
 - **`MAX_PARALLEL_CHUNKS`**: Maximum number of chunks to process in parallel (default: 2)
-- **`MAX_CONTEXT_TOKENS`**: Maximum context tokens for LLM processing (default: 16000)
-- **`CHARS_PER_TOKEN`**: Characters per token estimation (default: 4)
 
 #### Model Configuration
 - **`SUMMARY_MODEL`**: Model used for generating chat summaries

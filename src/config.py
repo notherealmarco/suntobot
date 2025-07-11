@@ -107,10 +107,6 @@ Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le ris
     # Parallel processing configuration
     MAX_PARALLEL_CHUNKS: int = int(os.getenv("MAX_PARALLEL_CHUNKS", "2"))
 
-    # Token estimation (rough approximation: 1 token ≈ 4 chars for most models)
-    MAX_CONTEXT_TOKENS: int = int(os.getenv("MAX_CONTEXT_TOKENS", "16000"))
-    CHARS_PER_TOKEN: int = int(os.getenv("CHARS_PER_TOKEN", "4"))
-
     # System Prompts for Smart Hybrid Approach
     CHUNK_SYSTEM_PROMPT: str = os.getenv(
         "CHUNK_SYSTEM_PROMPT",
