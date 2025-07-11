@@ -203,7 +203,7 @@ def strip_html_tags(text: str) -> str:
     return re.sub(r"<[^>]+>", "", text).strip()
 
 
-def sanitize_html(text: str) -> str:
+def sanitize_html(text: str, chat_prefix: str = "") -> str:
     """
     Sanitize HTML to only allow properly formed Telegram-supported tags.
 
@@ -225,7 +225,9 @@ def sanitize_html(text: str) -> str:
     if not text:
         return text
 
+    # First, convert markdown to HTML
     text = markdown.markdown(text)
+
     # Replace <br /> and <br> with newline for better formatting
     text = (
         text.replace("<br />", "\n")
@@ -239,141 +241,64 @@ def sanitize_html(text: str) -> str:
     )
 
     # Decode HTML entities FIRST to prevent creating invalid tags later
-    # This prevents &lt;script&gt; from becoming <script> after tag processing
     text = text.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
 
     text = text.replace("<ul>", "").replace("</ul>", "")
     text = text.replace("<li>", "🔸 ").replace("</li>", "\n\n")
 
-    # Define allowed tags (excluding self-closing tags like br)
+    # Define allowed tags
     allowed_tags = {"b", "i", "u", "s", "code", "pre", "a"}
 
-    # Pattern to match all HTML tags with optional attributes
-    tag_pattern = r"<(/?)([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>"
+    # Simple approach: strip all HTML except allowed tags with proper validation
+    # Use a more straightforward regex approach
 
-    # Find all tags and their positions
-    tags = []
-    for match in re.finditer(tag_pattern, text):
+    # First pass: handle anchor tags specially
+    def process_anchor(match):
+        full_tag = match.group(0)
+        href_match = re.search(
+            r'href\s*=\s*["\']([^"\']*)["\']', full_tag, re.IGNORECASE
+        )
+
+        if href_match:
+            href = href_match.group(1)
+            if href.startswith(("http://", "https://", "tg://", "mailto:")):
+                return f'<a href="{href}">'
+            elif href.isdigit():
+                return f'<a href="https://t.me/{chat_prefix}/{href}">'
+
+        # Invalid href, remove the tag
+        return ""
+
+    # Process opening anchor tags
+    text = re.sub(r"<a\b[^>]*>", process_anchor, text)
+
+    # Keep only allowed tags and remove all others
+    # Pattern to match all HTML tags
+    def replace_tag(match):
+        full_tag = match.group(0)
+        tag_name = match.group(2).lower() if match.group(2) else ""
         is_closing = match.group(1) == "/"
-        tag_name = match.group(2).lower()
-        attributes = match.group(3).strip()
-        full_match = match.group(0)
 
-        tags.append(
-            {
-                "name": tag_name,
-                "is_closing": is_closing,
-                "attributes": attributes,
-                "full_match": full_match,
-                "start": match.start(),
-                "end": match.end(),
-                "allowed": tag_name in allowed_tags,
-            }
-        )
-
-    # Build a list of valid tag pairs using a stricter approach
-    valid_tags = []
-    tag_stack = []
-
-    for tag in tags:
-        if not tag["allowed"]:
-            continue
-
-        if tag["is_closing"]:
-            # Find matching opening tag - must be the most recent one of the same type
-            # This ensures proper nesting
-            if tag_stack and tag_stack[-1]["name"] == tag["name"]:
-                # Found properly nested matching opening tag
-                opening_tag = tag_stack.pop()
-
-                # Validate and create clean tag pair
-                if tag["name"] == "a":
-                    # Special handling for anchor tags - validate href
-                    href_match = re.search(
-                        r'href\s*=\s*["\']([^"\']*)["\']',
-                        opening_tag["attributes"],
-                        re.IGNORECASE,
-                    )
-                    if href_match:
-                        href = href_match.group(1)
-                        # Validate URL
-                        if href.startswith(("http://", "https://", "tg://", "mailto:")):
-                            clean_opening = f'<a href="{href}">'
-                            clean_closing = "</a>"
-                            valid_tags.append(
-                                (opening_tag, tag, clean_opening, clean_closing)
-                            )
-                    # If no valid href, don't add the tag pair
-                else:
-                    # For other tags, create clean versions
-                    clean_opening = f"<{tag['name']}>"
-                    clean_closing = f"</{tag['name']}>"
-                    valid_tags.append((opening_tag, tag, clean_opening, clean_closing))
-
+        if tag_name in allowed_tags:
+            if is_closing:
+                return f"</{tag_name}>"
             else:
-                # Improperly nested or orphaned closing tag
-                # Clear the stack of any tags that would be improperly nested
-                while tag_stack and tag_stack[-1]["name"] != tag["name"]:
-                    tag_stack.pop()
-
-                # If we found a matching tag after clearing improper nesting
-                if tag_stack and tag_stack[-1]["name"] == tag["name"]:
-                    tag_stack.pop()  # Remove the opening tag but don't create a valid pair
-
-            # Orphaned closing tags are ignored
+                # For opening tags, we already processed <a> tags above
+                if tag_name == "a":
+                    return full_tag  # Keep the processed anchor tag
+                else:
+                    return f"<{tag_name}>"
         else:
-            # Opening tag - add to stack
-            tag_stack.append(tag)
+            # Remove disallowed tags
+            return ""
 
-    # Any remaining tags in stack are unclosed - ignore them
-
-    # Sort valid tags by position for replacement
-    valid_tags.sort(key=lambda x: x[0]["start"])
-
-    # Build the result by replacing tags from right to left to preserve positions
-    result = text
-    for opening_tag, closing_tag, clean_opening, clean_closing in reversed(valid_tags):
-        # Replace closing tag first (rightmost)
-        result = (
-            result[: closing_tag["start"]]
-            + clean_closing
-            + result[closing_tag["end"] :]
-        )
-        # Then replace opening tag
-        result = (
-            result[: opening_tag["start"]]
-            + clean_opening
-            + result[opening_tag["end"] :]
-        )
-
-    # Remove any remaining invalid HTML tags that weren't in valid pairs
-    # We need to be careful not to remove the tags we just added
-    all_tags_to_remove = []
-    for tag in tags:
-        # Only remove tags that weren't part of valid pairs
-        tag_was_used = False
-        for opening_tag, closing_tag, _, _ in valid_tags:
-            if (
-                tag["start"] == opening_tag["start"]
-                and tag["end"] == opening_tag["end"]
-            ) or (
-                tag["start"] == closing_tag["start"]
-                and tag["end"] == closing_tag["end"]
-            ):
-                tag_was_used = True
-                break
-
-        if not tag_was_used:
-            all_tags_to_remove.append((tag["start"], tag["end"]))
-
-    # Remove invalid tags from right to left to preserve positions
-    for start, end in sorted(all_tags_to_remove, reverse=True):
-        result = result[:start] + result[end:]
+    # Apply the tag filtering
+    text = re.sub(r"<(/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>", replace_tag, text)
 
     # Clean up multiple consecutive newlines and trim
-    result = re.sub(r"\n{3,}", "\n\n", result).strip()
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
 
-    return result
+    return text
 
 
 class SummaryEngine:
@@ -578,7 +503,7 @@ class SummaryEngine:
                     {"role": "system", "content": system_prompt},
                     {
                         "role": "user",
-                        "content": f"{Config.SYSTEM_PROMPT_CHUNK_PREAMBLE + '\n\n'}Partial summaries for period {time_range_desc}:\n{combined_content}",
+                        "content": f"{Config.SYSTEM_PROMPT_CHUNK_PREAMBLE + '\n\n'}Partial summaries for period {time_range_desc}:\n{combined_content}\n\n{Config.SYSTEM_PROMPT_SUFFIX}",
                     },
                 ],
             )
@@ -673,7 +598,11 @@ class SummaryEngine:
             )
 
     async def generate_summary(
-        self, messages: List[Message], requesting_username: str, time_range_desc: str
+        self,
+        messages: List[Message],
+        requesting_username: str,
+        time_range_desc: str,
+        chat_prefix: str = "",
     ) -> str:
         """
         Main entry point for generating summaries.
@@ -683,7 +612,7 @@ class SummaryEngine:
             raw_summary = await self.generate_smart_summary(
                 messages, requesting_username, time_range_desc
             )
-            return sanitize_html(raw_summary)
+            return sanitize_html(raw_summary, chat_prefix)
         except Exception as e:
             logger.error(f"Failed to generate smart summary: {e}")
             return f"Sorry, I couldn't generate a summary at this time. Error: {str(e)}"
@@ -753,16 +682,23 @@ class SummaryEngine:
                     original_author = "hidden author"
 
                 formatted_lines.append(
-                    f"[{timestamp}] {username} forwarded from {original_author}: {content_line}"
+                    f"{message.message_id} [{timestamp}] {username} forwarded from {original_author}: {content_line}"
                 )
             else:
-                formatted_lines.append(f"[{timestamp}] {username}: {content_line}")
+                formatted_lines.append(
+                    f"{message.message_id} [{timestamp}] {username}: {content_line}"
+                )
 
         formatted_lines.append(f"\nRequesting User: @{requesting_username}")
         if time_range_desc != "":
             formatted_lines.append(f"Time Period: {time_range_desc}")
 
-        return "\n".join(formatted_lines)
+        return (
+            "\n".join(formatted_lines)
+            .replace("</end_of_turn>", "")
+            .replace("</start_of_turn>", "")
+            .replace("\n\n", "\n")
+        )
 
     def _format_messages_for_mention_reply(
         self,
@@ -833,7 +769,9 @@ class SummaryEngine:
             if message.message_text:
                 content_line = message.message_text
             elif message.image_description:
-                content_line = f"[sent an image: {message.image_description}]"
+                content_line = (
+                    f"[sent an image: {message.image_description.replace('\n', ' ')}]"
+                )
             elif message.has_photo:
                 content_line = "[sent an image]"
 
@@ -889,15 +827,23 @@ class SummaryEngine:
                     messages=[
                         {
                             "role": "system",
-                            "content": Config.CHUNK_SYSTEM_PROMPT.format(
-                                chunk_index=1, total_chunks=1
-                            ),
+                            "content": Config.CHUNK_SYSTEM_PROMPT,
                         },
-                        {"role": "user", "content": formatted_content},
+                        {
+                            "role": "user",
+                            "content": formatted_content
+                            + "\n\n"
+                            + Config.CHUNK_SYSTEM_PROMPT_SUFFIX,
+                        },
                     ],
                 )
 
-                summary = response.choices[0].message.content.strip()
+                summary = (
+                    response.choices[0]
+                    .message.content.strip()
+                    .replace("</end_of_turn>", "")
+                    .replace("</start_of_turn>", "")
+                )
                 logger.info("Successfully generated chunk summary")
                 return summary
 

@@ -31,7 +31,9 @@ class CommandHandler:
         username = message.from_user.username or f"user_{user_id}"
         chat_id = message.chat_id
 
-        loading_message = await message.reply_text("Generating sunto, waiting... ⏳")
+        loading_message = await message.reply_text(
+            "👨‍🍳 Your sunto is being cooked, please wait..."
+        )
 
         try:
             time_interval = self._parse_command_arguments(message.text)
@@ -43,10 +45,16 @@ class CommandHandler:
                 chat_id, user_id, since_timestamp
             )
 
+            if message.chat.username:
+                chat_prefix = f"{message.chat.username}"
+            else:
+                chat_prefix = f"c/{str(chat_id)[4:]}"
+
             summary = await self.summary_engine.generate_summary(
                 messages=messages,
                 requesting_username=username,
                 time_range_desc=time_range_desc,
+                chat_prefix=chat_prefix,
             )
 
             try:

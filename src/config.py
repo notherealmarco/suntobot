@@ -45,7 +45,8 @@ Istruzioni:
 - Ogni punto elenco dovrebbe contenere un riassunto molto breve dell'argomento (max 120 caratteri)
 - Dai priorità alle informazioni che coinvolgono direttamente {username} (menzioni, risposte, richieste)
 - Evidenzia eventuali informazioni importanti perse da {username} durante la sua assenza
-- Riassumi solo i temi chiave se la chat è estesa (totale riepilogo entro 500 caratteri).
+- Riassumi solo i temi chiave se la chat è estesa (totale riepilogo entro 500 caratteri)
+- Per ogni argomento, cita il messaggio più rilevante. Citalo nel seguente formato: [username_autore](id_messaggio). Nei messaggi recenti, id_messaggio è il primo valore nella riga del messaggio. Nei riassunti parziali, riporta la citazione qualora sia presente.
 - Elimina dettagli secondari
 - Usa un tono amichevole e diretto
 - Rispondi solo in italiano
@@ -58,6 +59,11 @@ Formatta la tua risposta come segue:
 L'utente richiedente è: {username}
 Intervallo temporale: {time_range}
         """,
+    )
+
+    SYSTEM_PROMPT_SUFFIX: str = os.getenv(
+        "SYSTEM_PROMPT_SUFFIX",
+        """Assicurati che il riassunto sia coerente, comprensibile e in ordine cronologico. L'output dovrebbe essere un elenco puntato di argomenti chiave. Usa la lingua italiana e cita il messaggio più rilevante per ogni argomento nel formato [username_autore](id_messaggio). id_messaggio è il primo valore nella riga del messaggio.""",
     )
 
     SYSTEM_PROMPT_CHUNK_PREAMBLE: str = os.getenv(
@@ -108,18 +114,22 @@ Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le ris
     # System Prompts for Smart Hybrid Approach
     CHUNK_SYSTEM_PROMPT: str = os.getenv(
         "CHUNK_SYSTEM_PROMPT",
-        """Stai riassumendo la parte {chunk_index} di {total_chunks} di una conversazione chat.
+        """Stai riassumendo una parte di una conversazione su un gruppo Telegram.
 Istruzioni:
-- Concentrati sugli argomenti discussi, sugli annunci e sulle decisioni prese
+- Concentrati sugli argomenti discussi
 - Mantieni un riassunto molto conciso. Gli argomenti generali sono importanti, ma non i dettagli.
 - Crea un elenco puntato, in ordine cronologico
-- Usa 1-2 frasi per argomento, max 120 caratteri ciascuna
-- Punta a 500 caratteri totali per il tuo output
+- Usa 1-2 frasi per argomento, massimo 120 caratteri ciascuna
 
 Output di esempio:
-- Argomento 1: Breve riassunto della discussione
-- Argomento 2: Breve riassunto della discussione
+- Argomento 1: Breve riassunto
+- Argomento 2: Breve riassunto
 """,
+    )
+
+    CHUNK_SYSTEM_PROMPT_SUFFIX: str = os.getenv(
+        "CHUNK_SYSTEM_PROMPT_SUFFIX",
+        """Assicurati che il riassunto sia coerente, comprensibile e in ordine cronologico. L'output dovrebbe essere un elenco puntato di argomenti chiave, senza dettagli superflui e senza preambolo / conclusione. Usa la lingua italiana e cita il messaggio più rilevante per ogni argomento nel formato [username_autore](id_messaggio). id_messaggio è il primo valore nella riga del messaggio.""",
     )
 
     META_SUMMARY_SYSTEM_PROMPT: str = os.getenv(
@@ -140,7 +150,7 @@ Output di esempio:
 
     META_SUMMARY_SYSTEM_PROMPT_SUFFIX = os.getenv(
         "META_SUMMARY_SYSTEM_PROMPT_SUFFIX",
-        """Assicurati che il riassunto finale sia coerente, comprensibile e in ordine cronologico. L'output dovrebbe essere un elenco puntato di argomenti chiave, senza dettagli superflui. Usa la lingua italiana.
+        """Assicurati che il riassunto finale sia coerente, comprensibile e in ordine cronologico. L'output dovrebbe essere un elenco puntato di argomenti chiave, senza dettagli superflui. Se ci sono citazioni nel formato [username_autore](id_messaggio), riportane una (la più rilevante) per ogni punto chiave del riassunto finale. Usa la lingua italiana.
         Intervallo temporale: {time_range}""",
     )
 
