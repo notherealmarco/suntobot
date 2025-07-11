@@ -30,7 +30,7 @@ class Message(Base):
     image_description = Column(Text)  # AI-generated description of the image
     has_photo = Column(Boolean, default=False)  # Track if message contained a photo
     timestamp = Column(DateTime, default=func.current_timestamp())
-    message_id = Column(BigInteger, unique=True, nullable=False)
+    message_id = Column(BigInteger, unique=False, nullable=False)
 
     # Forwarded message information
     is_forwarded = Column(Boolean, default=False)
