@@ -256,11 +256,11 @@ def sanitize_html(text: str, chat_prefix: str = "") -> str:
     def process_anchor_element(match):
         opening_tag = match.group(1)
         link_text = match.group(2)
-        
+
         href_match = re.search(
             r'href\s*=\s*["\']([^"\']*)["\']', opening_tag, re.IGNORECASE
         )
-        
+
         if href_match:
             href = href_match.group(1)
             if href.startswith(("http://", "https://", "tg://", "mailto:")):
@@ -271,29 +271,34 @@ def sanitize_html(text: str, chat_prefix: str = "") -> str:
                 # Handle comma-separated message IDs like "123, 456, 789"
                 message_ids = [id_str.strip() for id_str in href.split(",")]
                 valid_ids = [id_str for id_str in message_ids if id_str.isdigit()]
-                
+
                 if valid_ids:
                     # Create multiple links, use original text for first link, incremental numbers for others
                     links = []
                     for i, msg_id in enumerate(valid_ids):
                         if i == 0:
                             # Use original link text for the first link
-                            links.append(f'<a href="https://t.me/{chat_prefix}/{msg_id}">{link_text}</a>')
+                            links.append(
+                                f'<a href="https://t.me/{chat_prefix}/{msg_id}">{link_text}</a>'
+                            )
                         else:
                             # Use incremental numbers (2, 3, 4, etc.) for subsequent links
-                            links.append(f'<a href="https://t.me/{chat_prefix}/{msg_id}">{i + 1}</a>')
+                            links.append(
+                                f'<a href="https://t.me/{chat_prefix}/{msg_id}">{i + 1}</a>'
+                            )
                     return " ".join(links)  # Changed from ", ".join() to " ".join()
-        
+
         # Invalid href, return just the text content
         return link_text
-    
-    # Process complete anchor elements (opening tag + content + closing tag)
-    text = re.sub(r'(<a\b[^>]*>)(.*?)</a>', process_anchor_element, text, flags=re.DOTALL)
 
-    # Keep only allowed tags and remove all others  
+    # Process complete anchor elements (opening tag + content + closing tag)
+    text = re.sub(
+        r"(<a\b[^>]*>)(.*?)</a>", process_anchor_element, text, flags=re.DOTALL
+    )
+
+    # Keep only allowed tags and remove all others
     # Pattern to match all remaining HTML tags (anchor elements already processed)
     def replace_tag(match):
-        full_tag = match.group(0)
         tag_name = match.group(2).lower() if match.group(2) else ""
         is_closing = match.group(1) == "/"
 
