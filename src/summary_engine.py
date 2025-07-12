@@ -238,7 +238,7 @@ def sanitize_html(text: str, chat_prefix: str = "") -> str:
         return text
 
     # Handle LLM bad links
-    text = re.sub(r'\[(\d+)]', r'[link](\1)', text)
+    text = re.sub(r'\[(\d+)](?!\()', r'[link](\1)', text)
 
     # Convert Markdown to HTML
     text = markdown.markdown(text)
