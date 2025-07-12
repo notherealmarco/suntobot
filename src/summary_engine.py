@@ -252,28 +252,46 @@ def sanitize_html(text: str, chat_prefix: str = "") -> str:
     # Simple approach: strip all HTML except allowed tags with proper validation
     # Use a more straightforward regex approach
 
-    # First pass: handle anchor tags specially
-    def process_anchor(match):
-        full_tag = match.group(0)
+    # First pass: handle complete anchor elements specially
+    def process_anchor_element(match):
+        opening_tag = match.group(1)
+        link_text = match.group(2)
+        
         href_match = re.search(
-            r'href\s*=\s*["\']([^"\']*)["\']', full_tag, re.IGNORECASE
+            r'href\s*=\s*["\']([^"\']*)["\']', opening_tag, re.IGNORECASE
         )
-
+        
         if href_match:
             href = href_match.group(1)
             if href.startswith(("http://", "https://", "tg://", "mailto:")):
-                return f'<a href="{href}">'
+                return f'<a href="{href}">{link_text}</a>'
             elif href.isdigit():
-                return f'<a href="https://t.me/{chat_prefix}/{href}">'
+                return f'<a href="https://t.me/{chat_prefix}/{href}">{link_text}</a>'
+            elif "," in href:
+                # Handle comma-separated message IDs like "123, 456, 789"
+                message_ids = [id_str.strip() for id_str in href.split(",")]
+                valid_ids = [id_str for id_str in message_ids if id_str.isdigit()]
+                
+                if valid_ids:
+                    # Create multiple links, use original text for first link, incremental numbers for others
+                    links = []
+                    for i, msg_id in enumerate(valid_ids):
+                        if i == 0:
+                            # Use original link text for the first link
+                            links.append(f'<a href="https://t.me/{chat_prefix}/{msg_id}">{link_text}</a>')
+                        else:
+                            # Use incremental numbers (2, 3, 4, etc.) for subsequent links
+                            links.append(f'<a href="https://t.me/{chat_prefix}/{msg_id}">{i + 1}</a>')
+                    return " ".join(links)  # Changed from ", ".join() to " ".join()
+        
+        # Invalid href, return just the text content
+        return link_text
+    
+    # Process complete anchor elements (opening tag + content + closing tag)
+    text = re.sub(r'(<a\b[^>]*>)(.*?)</a>', process_anchor_element, text, flags=re.DOTALL)
 
-        # Invalid href, remove the tag
-        return ""
-
-    # Process opening anchor tags
-    text = re.sub(r"<a\b[^>]*>", process_anchor, text)
-
-    # Keep only allowed tags and remove all others
-    # Pattern to match all HTML tags
+    # Keep only allowed tags and remove all others  
+    # Pattern to match all remaining HTML tags (anchor elements already processed)
     def replace_tag(match):
         full_tag = match.group(0)
         tag_name = match.group(2).lower() if match.group(2) else ""
@@ -283,17 +301,13 @@ def sanitize_html(text: str, chat_prefix: str = "") -> str:
             if is_closing:
                 return f"</{tag_name}>"
             else:
-                # For opening tags, we already processed <a> tags above
-                if tag_name == "a":
-                    return full_tag  # Keep the processed anchor tag
-                else:
-                    return f"<{tag_name}>"
+                return f"<{tag_name}>"
         else:
             # Remove disallowed tags
             return ""
 
-    # Apply the tag filtering
-    text = re.sub(r"<(/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>", replace_tag, text)
+    # Apply the tag filtering - only process non-anchor tags since anchors are already handled
+    text = re.sub(r"<(/?)(?!a\b)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>", replace_tag, text)
 
     # Clean up multiple consecutive newlines and trim
     text = re.sub(r"\n{3,}", "\n\n", text).strip()

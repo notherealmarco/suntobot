@@ -43,13 +43,11 @@ class Config:
 Istruzioni:
 - Organizza la risposta in elenco puntato, con un punto per ogni argomento o thread rilevante
 - Ogni punto elenco dovrebbe contenere un riassunto molto breve dell'argomento (max 120 caratteri)
-- Dai priorità alle informazioni che coinvolgono direttamente {username} (menzioni, risposte, richieste)
 - Evidenzia eventuali informazioni importanti perse da {username} durante la sua assenza
 - Riassumi solo i temi chiave se la chat è estesa (totale riepilogo entro 500 caratteri)
-- Per ogni argomento, cita il messaggio più rilevante. Citalo nel seguente formato: [username_autore](id_messaggio). Nei messaggi recenti, id_messaggio è il primo valore nella riga del messaggio. Nei riassunti parziali, riporta la citazione qualora sia presente.
+- Per ogni argomento, cita il messaggio più rilevante. Citalo nel seguente formato: [testo link](id_messaggio). Nei messaggi recenti, id_messaggio è il primo valore nella riga del messaggio. Nei riassunti parziali, riporta la citazione qualora sia presente. Il testo del link non deve riprodurre necessariamente il testo originale del messaggio, ma deve essere scelto in modo che si integri in modo fluido nel contesto del riassunto.
 - Elimina dettagli secondari
 - Usa un tono amichevole e diretto
-- Rispondi solo in italiano
 
 Formatta la tua risposta come segue:
 - **Argomento 1**: Breve riassunto della discussione
@@ -63,7 +61,7 @@ Intervallo temporale: {time_range}
 
     SYSTEM_PROMPT_SUFFIX: str = os.getenv(
         "SYSTEM_PROMPT_SUFFIX",
-        """Assicurati che il riassunto sia coerente, comprensibile e in ordine cronologico. L'output dovrebbe essere un elenco puntato di argomenti chiave. Usa la lingua italiana e cita il messaggio più rilevante per ogni argomento nel formato [username_autore](id_messaggio). id_messaggio è il primo valore nella riga del messaggio.""",
+        """Assicurati che il riassunto sia coerente, comprensibile e in ordine cronologico. L'output dovrebbe essere un elenco puntato di argomenti chiave. Cita il messaggio più rilevante per ogni argomento nel formato [testo link](id_messaggio). id_messaggio è il primo valore nella riga del messaggio e deve essere esattamente uno per ogni citazione. Cita un messaggio per punto qualora rilevante. Usa la lingua italiana.""",
     )
 
     SYSTEM_PROMPT_CHUNK_PREAMBLE: str = os.getenv(
@@ -125,7 +123,7 @@ Output di esempio:
 
     CHUNK_SYSTEM_PROMPT_SUFFIX: str = os.getenv(
         "CHUNK_SYSTEM_PROMPT_SUFFIX",
-        """Assicurati che il riassunto sia coerente, comprensibile e in ordine cronologico. L'output dovrebbe essere un elenco puntato di argomenti chiave, senza dettagli superflui e senza preambolo / conclusione. Usa la lingua italiana e cita il messaggio più rilevante per ogni argomento nel formato [username_autore](id_messaggio). id_messaggio è il primo valore nella riga del messaggio.""",
+        """Assicurati che il riassunto sia coerente, comprensibile e in ordine cronologico. L'output dovrebbe essere un elenco puntato di argomenti chiave, senza dettagli superflui e senza preambolo / conclusione. Usa la lingua italiana e cita il messaggio più rilevante per ogni argomento nel formato [username_autore](id_messaggio). id_messaggio è il primo valore nella riga del messaggio e deve essere esattamente uno per ogni citazione. Cita al più un solo messaggio per ogni punto.""",
     )
 
     META_SUMMARY_SYSTEM_PROMPT: str = os.getenv(
