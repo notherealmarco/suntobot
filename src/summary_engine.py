@@ -190,6 +190,18 @@ class ChunkCacheManager:
         ]
 
 
+def strip_thinking(text: str) -> str:
+    """
+    Removes all text between <think> and </think> tags, including the tags.
+
+    Args:
+        text (str): Input text potentially containing <think>...</think> segments.
+
+    Returns:
+        str: Text with all <think>...</think> blocks removed.
+    """
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
 def strip_html_tags(text: str) -> str:
     """
     Strip all HTML tags from the input text.
@@ -385,7 +397,9 @@ class SummaryEngine:
                 ],
             )
 
-            return response.choices[0].message.content.strip()
+
+
+            return strip_thinking(response.choices[0].message.content).strip()
 
         except Exception as e:
             logger.error(f"Failed to create meta-summary: {e}")
@@ -527,7 +541,7 @@ class SummaryEngine:
                 ],
             )
 
-            return response.choices[0].message.content.strip()
+            return strip_thinking(response.choices[0].message.content).strip()
 
         except Exception as e:
             logger.error(f"Failed to create final summary: {e}")
@@ -660,7 +674,7 @@ class SummaryEngine:
                 ],
             )
 
-            raw_reply = response.choices[0].message.content.strip()
+            raw_reply = strip_thinking(response.choices[0].message.content.strip())
             return sanitize_html(raw_reply)
 
         except Exception as e:
@@ -843,6 +857,7 @@ class SummaryEngine:
                 # Generate summary using OpenAI with proper Config prompt
                 response = await self.client.chat.completions.create(
                     model=Config.SUMMARY_MODEL,
+                    reasoning_effort= None,
                     messages=[
                         {
                             "role": "system",
@@ -857,12 +872,12 @@ class SummaryEngine:
                     ],
                 )
 
-                summary = (
+                summary = strip_thinking((
                     response.choices[0]
                     .message.content.strip()
                     .replace("</end_of_turn>", "")
                     .replace("</start_of_turn>", "")
-                )
+                ))
                 logger.info("Successfully generated chunk summary")
                 return summary
 
@@ -891,7 +906,7 @@ class SummaryEngine:
                 ],
             )
 
-            raw_summary = response.choices[0].message.content.strip()
+            raw_summary = strip_thinking(response.choices[0].message.content.strip())
             return raw_summary
 
         except Exception as e:

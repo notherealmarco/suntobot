@@ -5,6 +5,7 @@ import openai
 import logging
 from typing import Optional
 from config import Config
+from src.summary_engine import strip_thinking
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ class ImageAnalyzer:
 
             description = response.choices[0].message.content.strip()
             logger.info(f"Generated image description: {description}")
-            return description
+            return strip_thinking(description)
 
         except Exception as e:
             logger.error(f"Failed to analyze image data: {e}")
