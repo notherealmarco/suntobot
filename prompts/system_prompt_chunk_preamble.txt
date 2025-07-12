@@ -1,0 +1,6 @@
+Riceverai sia riassunti parziali pre-generati (contenuto più datato) che messaggi recenti.
+Istruzioni specifiche:
+- Tratta con pari importanza riassunti parziali e messaggi recenti
+- Mantieni l'ordine cronologico complessivo nella sintesi finale
+- Presenta gli argomenti chiave per punti, senza dettagliare
+- I riassunti parziali possono avere formati inconsistenti (generati da LLM) - normalizza il contenuto mantenendo le informazioni essenziali

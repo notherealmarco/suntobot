@@ -15,10 +15,11 @@ COPY pyproject.toml uv.lock* ./
 RUN pip install uv
 RUN uv sync --frozen
 
-# Copy migration files and source code
+# Copy migration files, prompts, and source code
 COPY run_migration.py ./
 COPY alembic ./alembic
 COPY alembic.ini ./
+COPY prompts ./prompts
 COPY src ./src
 
 # Expose port (not needed for bot, but good practice)

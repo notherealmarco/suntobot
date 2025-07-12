@@ -144,12 +144,8 @@ All configuration is done through environment variables in the `.env` file:
 | `IMAGE_ANALYSIS_ENABLED`         | Enable/disable image analysis             | No       | `true`                    | `false`                             |
 | `SUMMARY_CHUNK_SIZE`             | Messages per chunk for large summaries    | No       | `70`                      | `100`, `50`                         |
 | `MAX_PARALLEL_CHUNKS`            | Maximum parallel chunks to process        | No       | `2`                       | `4`, `1`                            |
-| `SYSTEM_PROMPT`                  | Custom system prompt for summaries       | No       | Built-in Italian prompt   | See placeholders section below      |
-| `MENTION_SYSTEM_PROMPT`          | Custom prompt for mention replies        | No       | Built-in Italian prompt   | `"You are a helpful assistant..."`  |
-| `CHUNK_SYSTEM_PROMPT`            | Custom prompt for chunk processing       | No       | Built-in Italian prompt   | `"Summarize this chunk..."`         |
-| `META_SUMMARY_SYSTEM_PROMPT`     | Custom prompt for meta-summary           | No       | Built-in Italian prompt   | `"Create final summary..."`         |
-| `SYSTEM_PROMPT_CHUNK_PREAMBLE`   | Custom chunk preamble                    | No       | Built-in Italian prompt   | `"You will receive..."`             |
-| `META_SUMMARY_SYSTEM_PROMPT_SUFFIX` | Custom meta-summary suffix            | No       | Built-in Italian prompt   | `"Ensure final summary..."`         |
+
+**Note**: System prompts are now managed through text files. See the [Prompt Customization](#prompt-customization) section for details.
 
 ### Getting Required Values
 
@@ -214,8 +210,9 @@ These settings control how large conversations are processed:
 - **`IMAGE_MODEL`**: Model used for analyzing images in chat (must support vision)
 
 #### Custom System Prompts
-You can customize how the bot behaves by setting custom system prompts:
+You can customize how the bot behaves by setting custom prompts. See the **[Prompt Customization](#prompt-customization)** section below for detailed instructions on editing prompt files or using environment variables.
 
+Available prompts:
 - **`SYSTEM_PROMPT`**: Controls how summaries are generated (default is in Italian)
 - **`MENTION_SYSTEM_PROMPT`**: Controls how the bot responds to mentions (default is in Italian)
 - **`CHUNK_SYSTEM_PROMPT`**: Controls how individual chunks are processed (default is in Italian)
@@ -223,9 +220,70 @@ You can customize how the bot behaves by setting custom system prompts:
 - **`SYSTEM_PROMPT_CHUNK_PREAMBLE`**: Additional context for chunk processing (default is in Italian)
 - **`META_SUMMARY_SYSTEM_PROMPT_SUFFIX`**: Additional context for meta-summary generation (default is in Italian)
 
-**Note**: The default prompts are in Italian. If you want English responses, you'll need to set custom prompts.
+**Note**: The default prompts are in Italian. If you want English responses, you'll need to customize the prompts (see Prompt Customization section below).
 
-##### System Prompt Placeholders
+## Prompt Customization
+
+SuntoBot's behavior is controlled by prompt templates stored in text files. You can customize these prompts in two ways:
+
+### Method 1: Edit Prompt Files Directly (Docker Volume Mount)
+
+For easy prompt editing without rebuilding the Docker image, you can mount the prompts directory as a volume:
+
+1. **Uncomment volume mount in docker-compose.yml:**
+```yaml
+  bot:
+    image: git.marcorealacci.me/marcorealacci/suntobot:latest
+    env_file: .env
+    volumes:
+      - ./prompts:/app/prompts  # Uncomment this line
+```
+
+2. **Copy prompts to your local directory:**
+```bash
+# Create prompts directory if it doesn't exist
+mkdir -p prompts
+
+# Copy default prompts from a running container
+docker-compose up -d
+docker cp $(docker-compose ps -q bot):/app/prompts/. ./prompts/
+
+# Or extract from the image directly
+docker run --rm -v $(pwd)/prompts:/tmp/prompts git.marcorealacci.me/marcorealacci/suntobot:latest cp -r /app/prompts/. /tmp/prompts/
+```
+
+3. **Edit prompt files directly:**
+The following prompt files are available for customization:
+- `prompts/system_prompt.txt` - Main summary generation prompt
+- `prompts/system_prompt_suffix.txt` - Summary completion instructions
+- `prompts/mention_system_prompt.txt` - Bot mention response behavior
+- `prompts/chunk_system_prompt.txt` - Individual chunk processing
+- `prompts/chunk_system_prompt_suffix.txt` - Chunk processing completion
+- `prompts/meta_summary_system_prompt.txt` - Final summary from chunks
+- `prompts/meta_summary_system_prompt_suffix.txt` - Meta-summary completion
+- `prompts/system_prompt_chunk_preamble.txt` - Context for chunk processing
+
+4. **Restart the bot to apply changes:**
+```bash
+docker-compose restart bot
+```
+
+### Method 2: Environment Variables (Legacy)
+
+You can still override prompts using environment variables (these take precedence over file-based prompts):
+
+```bash
+# In .env
+SYSTEM_PROMPT="Your custom summary prompt..."
+MENTION_SYSTEM_PROMPT="Your custom mention reply prompt..."
+CHUNK_SYSTEM_PROMPT="Your custom chunk processing prompt..."
+META_SUMMARY_SYSTEM_PROMPT="Your custom meta-summary prompt..."
+SYSTEM_PROMPT_CHUNK_PREAMBLE="Your custom chunk preamble..."
+META_SUMMARY_SYSTEM_PROMPT_SUFFIX="Your custom meta-summary suffix..."
+```
+
+### Prompt Template Placeholders
+
 The custom system prompts support the following placeholders that are automatically replaced:
 
 **`SYSTEM_PROMPT`** placeholders:

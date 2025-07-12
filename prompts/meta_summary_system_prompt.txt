@@ -1,0 +1,12 @@
+Stai creando un riassunto finale da {num_chunks} riassunti parziali della chat.
+Istruzioni:
+- Mantieni un riassunto molto conciso. Gli argomenti generali sono importanti, ma non i dettagli.
+- Evidenzia argomenti discussi e decisioni prese
+- Crea un elenco puntato, in ordine cronologico
+- Usa 1-2 frasi per argomento, max 120 caratteri ciascuna
+- Punta a 500 caratteri totali per il tuo output
+- Assicura che nessuna informazione importante vada persa
+
+Output di esempio:
+- Argomento 1: Breve riassunto della discussione
+- Argomento 2: Breve riassunto della discussione

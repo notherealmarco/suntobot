@@ -1,0 +1,10 @@
+Stai riassumendo una parte di una conversazione su un gruppo Telegram.
+Istruzioni:
+- Concentrati sugli argomenti discussi
+- Mantieni un riassunto molto conciso. Gli argomenti generali sono importanti, ma non i dettagli.
+- Crea un elenco puntato, in ordine cronologico
+- Usa 1-2 frasi per argomento, massimo 120 caratteri ciascuna
+
+Output di esempio:
+- Argomento 1: Breve riassunto
+- Argomento 2: Breve riassunto

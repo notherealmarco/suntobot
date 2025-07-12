@@ -10,3 +10,6 @@ services:
   bot:
     image: git.marcorealacci.me/marcorealacci/suntobot:latest
     env_file: .env
+    # Uncomment the following lines to use your custom prompts
+    # volumes:
+    #   - ./prompts:/app/prompts

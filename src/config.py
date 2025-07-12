@@ -1,10 +1,28 @@
 """Configuration management for the bot."""
 
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from typing import List
 
 load_dotenv()
+
+
+def _load_prompt_from_file(filename: str) -> str:
+    """Load prompt content from a text file in the prompts directory."""
+    # Get the directory where this config.py file is located
+    current_dir = Path(__file__).parent
+    # Navigate to the prompts directory (one level up from src, then into prompts)
+    prompts_dir = current_dir.parent / "prompts"
+    file_path = prompts_dir / filename
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Prompt file not found: {file_path}")
+    except Exception as e:
+        raise Exception(f"Error reading prompt file {file_path}: {e}")
 
 
 class Config:
@@ -36,63 +54,15 @@ class Config:
     MENTION_CONTEXT_HOURS: int = int(os.getenv("MENTION_CONTEXT_HOURS", "4"))
     OLD_MENTION_CONTEXT_SIZE: int = int(os.getenv("OLD_MENTION_CONTEXT_SIZE", "10"))
 
-    SYSTEM_PROMPT: str = os.getenv(
-        "SYSTEM_PROMPT",
-        """Sei un assistente utile che crea riepiloghi personalizzati per le conversazioni di gruppo su Telegram. Il tuo compito è analizzare i messaggi ricevuti e generare un riepilogo conciso in formato elenco puntato.
-
-Istruzioni:
-- Organizza la risposta in elenco puntato, con un punto per ogni argomento o thread rilevante
-- Ogni punto elenco dovrebbe contenere un riassunto molto breve dell'argomento (max 120 caratteri)
-- Evidenzia eventuali informazioni importanti perse da {username} durante la sua assenza
-- Riassumi solo i temi chiave se la chat è estesa (totale riepilogo entro 500 caratteri)
-- Per ogni argomento, cita il messaggio più rilevante. Citalo nel seguente formato: [testo link](id_messaggio). Nei messaggi recenti, id_messaggio è il primo valore nella riga del messaggio. Nei riassunti parziali, riporta la citazione qualora sia presente. Il testo del link non deve riprodurre necessariamente il testo originale del messaggio, ma deve essere scelto in modo che si integri in modo fluido nel contesto del riassunto.
-- Elimina dettagli secondari
-- Usa un tono amichevole e diretto
-
-Formatta la tua risposta come segue:
-- **Argomento 1**: Breve riassunto della discussione
-- **Argomento 2**: Breve riassunto della discussione
-- **Argomento 3**: Breve riassunto della discussione
-
-L'utente richiedente è: {username}
-Intervallo temporale: {time_range}
-        """,
-    )
-
-    SYSTEM_PROMPT_SUFFIX: str = os.getenv(
-        "SYSTEM_PROMPT_SUFFIX",
-        """Assicurati che il riassunto sia coerente, comprensibile e in ordine cronologico. L'output dovrebbe essere un elenco puntato di argomenti chiave. Cita il messaggio più rilevante per ogni argomento nel formato [testo link](id_messaggio). id_messaggio è il primo valore nella riga del messaggio e deve essere esattamente uno per ogni citazione. Cita un messaggio per punto qualora rilevante. Usa la lingua italiana.""",
-    )
-
-    SYSTEM_PROMPT_CHUNK_PREAMBLE: str = os.getenv(
-        "SYSTEM_PROMPT_CHUNK_PREAMBLE",
-        """
-        Riceverai sia riassunti parziali pre-generati (contenuto più datato) che messaggi recenti.
-Istruzioni specifiche:
-- Tratta con pari importanza riassunti parziali e messaggi recenti
-- Mantieni l'ordine cronologico complessivo nella sintesi finale
-- Presenta gli argomenti chiave per punti, senza dettagliare
-- I riassunti parziali possono avere formati inconsistenti (generati da LLM) - normalizza il contenuto mantenendo le informazioni essenziali
-        """,
-    )
-
-    MENTION_SYSTEM_PROMPT: str = os.getenv(
-        "MENTION_SYSTEM_PROMPT",
-        """Sei un assistente utile che risponde alle domande degli utenti nei gruppi Telegram. Quando un utente ti menziona, il tuo compito è fornire una risposta utile e pertinente basata sul contesto della conversazione.
-
-Istruzioni:
-- Rispondi in modo diretto e utile alla domanda o richiesta dell'utente
-- Usa il contesto della chat per comprendere meglio la situazione
-- Se l'utente sta rispondendo a un messaggio specifico, concentrati su quel messaggio
-- Mantieni un tono amichevole e colloquiale
-- Rispondi nella lingua utilizzata dall'utente che ti ha menzionato
-- Se non hai abbastanza informazioni per rispondere, chiedi chiarimenti
-- Sii conciso ma completo nelle tue risposte
-- Se viene fatto riferimento a messaggi precedenti, utilizzali per fornire un contesto migliore
-
-Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le risposte pertinenti e utili per tutti i partecipanti.
-        """,
-    )
+    # Load prompts from text files
+    SYSTEM_PROMPT: str = _load_prompt_from_file("system_prompt.txt")
+    SYSTEM_PROMPT_SUFFIX: str = _load_prompt_from_file("system_prompt_suffix.txt")
+    SYSTEM_PROMPT_CHUNK_PREAMBLE: str = _load_prompt_from_file("system_prompt_chunk_preamble.txt")
+    MENTION_SYSTEM_PROMPT: str = _load_prompt_from_file("mention_system_prompt.txt")
+    CHUNK_SYSTEM_PROMPT: str = _load_prompt_from_file("chunk_system_prompt.txt")
+    CHUNK_SYSTEM_PROMPT_SUFFIX: str = _load_prompt_from_file("chunk_system_prompt_suffix.txt")
+    META_SUMMARY_SYSTEM_PROMPT: str = _load_prompt_from_file("meta_summary_system_prompt.txt")
+    META_SUMMARY_SYSTEM_PROMPT_SUFFIX: str = _load_prompt_from_file("meta_summary_system_prompt_suffix.txt")
 
     # Image Analysis Configuration
     IMAGE_ANALYSIS_ENABLED: bool = (
@@ -104,49 +74,6 @@ Ricorda: Stai partecipando a una conversazione di gruppo, quindi mantieni le ris
 
     # Parallel processing configuration
     MAX_PARALLEL_CHUNKS: int = int(os.getenv("MAX_PARALLEL_CHUNKS", "2"))
-
-    # System Prompts for Smart Hybrid Approach
-    CHUNK_SYSTEM_PROMPT: str = os.getenv(
-        "CHUNK_SYSTEM_PROMPT",
-        """Stai riassumendo una parte di una conversazione su un gruppo Telegram.
-Istruzioni:
-- Concentrati sugli argomenti discussi
-- Mantieni un riassunto molto conciso. Gli argomenti generali sono importanti, ma non i dettagli.
-- Crea un elenco puntato, in ordine cronologico
-- Usa 1-2 frasi per argomento, massimo 120 caratteri ciascuna
-
-Output di esempio:
-- Argomento 1: Breve riassunto
-- Argomento 2: Breve riassunto
-""",
-    )
-
-    CHUNK_SYSTEM_PROMPT_SUFFIX: str = os.getenv(
-        "CHUNK_SYSTEM_PROMPT_SUFFIX",
-        """Assicurati che il riassunto sia coerente, comprensibile e in ordine cronologico. L'output dovrebbe essere un elenco puntato di argomenti chiave, senza dettagli superflui e senza preambolo / conclusione. Usa la lingua italiana e cita il messaggio più rilevante per ogni argomento nel formato [username_autore](id_messaggio). id_messaggio è il primo valore nella riga del messaggio e deve essere esattamente uno per ogni citazione. Cita al più un solo messaggio per ogni punto.""",
-    )
-
-    META_SUMMARY_SYSTEM_PROMPT: str = os.getenv(
-        "META_SUMMARY_SYSTEM_PROMPT",
-        """Stai creando un riassunto finale da {num_chunks} riassunti parziali della chat.
-Istruzioni:
-- Mantieni un riassunto molto conciso. Gli argomenti generali sono importanti, ma non i dettagli.
-- Evidenzia argomenti discussi e decisioni prese
-- Crea un elenco puntato, in ordine cronologico
-- Usa 1-2 frasi per argomento, max 120 caratteri ciascuna
-- Punta a 500 caratteri totali per il tuo output
-- Assicura che nessuna informazione importante vada persa
-
-Output di esempio:
-- Argomento 1: Breve riassunto della discussione
-- Argomento 2: Breve riassunto della discussione""",
-    )
-
-    META_SUMMARY_SYSTEM_PROMPT_SUFFIX = os.getenv(
-        "META_SUMMARY_SYSTEM_PROMPT_SUFFIX",
-        """Assicurati che il riassunto finale sia coerente, comprensibile e in ordine cronologico. L'output dovrebbe essere un elenco puntato di argomenti chiave, senza dettagli superflui. Se ci sono citazioni nel formato [username_autore](id_messaggio), riportane una (la più rilevante) per ogni punto chiave del riassunto finale. Usa la lingua italiana.
-        Intervallo temporale: {time_range}""",
-    )
 
     @classmethod
     def validate(cls) -> None:
