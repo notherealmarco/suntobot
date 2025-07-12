@@ -5,7 +5,7 @@ import openai
 import logging
 from typing import Optional
 from config import Config
-from src.summary_engine import strip_thinking
+from summary_engine import strip_thinking
 
 logger = logging.getLogger(__name__)
 
