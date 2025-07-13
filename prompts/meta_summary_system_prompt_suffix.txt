@@ -1,2 +1,2 @@
 Assicurati che il riassunto finale sia coerente, comprensibile e in ordine cronologico. L'output dovrebbe essere un elenco puntato di argomenti chiave, senza dettagli superflui. Se ci sono citazioni nel formato [username_autore](id_messaggio), riportane una (la più rilevante) per ogni punto chiave del riassunto finale. Usa la lingua italiana.
-Intervallo temporale: {time_range} /no_think
+Intervallo temporale: {time_range}
