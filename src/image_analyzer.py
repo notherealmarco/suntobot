@@ -1,10 +1,10 @@
 """Image analysis service using multimodal LLM."""
 
 import base64
-import openai
 import logging
 from typing import Optional
 from config import Config
+from llm_client import LLMClient
 from summary_engine import strip_thinking
 
 logger = logging.getLogger(__name__)
@@ -12,9 +12,7 @@ logger = logging.getLogger(__name__)
 
 class ImageAnalyzer:
     def __init__(self):
-        self.client = openai.AsyncOpenAI(
-            api_key=Config.OPENAI_API_KEY, base_url=Config.OPENAI_BASE_URL
-        )
+        self.llm_client = LLMClient()
 
     async def analyze_image_data(self, image_data: bytes) -> Optional[str]:
         try:
@@ -29,8 +27,8 @@ class ImageAnalyzer:
                 "Be specific and factual."
             )
 
-            response = await self.client.chat.completions.create(
-                model=Config.IMAGE_MODEL,  # Using your configurable multimodal model
+            response = await self.llm_client.create_chat_completion(
+                model=Config.IMAGE_MODEL,
                 messages=[
                     {
                         "role": "user",
@@ -40,7 +38,7 @@ class ImageAnalyzer:
                                 "type": "image_url",
                                 "image_url": {
                                     "url": f"data:image/jpeg;base64,{image_base64}",
-                                    "detail": "low",  # Use "low" for faster processing
+                                    "detail": "low",
                                 },
                             },
                         ],
@@ -57,3 +55,4 @@ class ImageAnalyzer:
         except Exception as e:
             logger.error(f"Failed to analyze image data: {e}")
             return None
+

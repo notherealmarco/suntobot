@@ -144,6 +144,10 @@ All configuration is done through environment variables in the `.env` file:
 | `IMAGE_ANALYSIS_ENABLED`         | Enable/disable image analysis             | No       | `true`                    | `false`                             |
 | `SUMMARY_CHUNK_SIZE`             | Messages per chunk for large summaries    | No       | `70`                      | `100`, `50`                         |
 | `MAX_PARALLEL_CHUNKS`            | Maximum parallel chunks to process        | No       | `2`                       | `4`, `1`                            |
+| `OLLAMA_NUM_CTX`                 | Ollama context window size                | No       | -                         | `8192`, `32768`                     |
+| `OLLAMA_KEEP_ALIVE`              | How long model stays loaded in memory     | No       | -                         | `5m`, `1h`, `0`                     |
+| `OLLAMA_THINKING`                | Enable thinking/reasoning mode            | No       | -                         | `true`, `false`                     |
+| `OLLAMA_THINK_BUDGET`            | Max tokens for thinking budget            | No       | -                         | `4096`, `8192`                      |
 
 **Note**: System prompts are now managed through text files. See the [Prompt Customization](#prompt-customization) section for details.
 
@@ -172,8 +176,14 @@ SuntoBot supports any OpenAI-compatible API. Examples:
 # In .env
 OPENAI_BASE_URL=http://localhost:11434/v1
 OPENAI_API_KEY=ollama  # Can be anything for local Ollama
-SUMMARY_MODEL=gemma2:27b
-IMAGE_MODEL=gemma2:27b
+SUMMARY_MODEL=qwen3:8b
+IMAGE_MODEL=llava:7b
+
+# Optional: Ollama-specific settings
+OLLAMA_NUM_CTX=8192
+OLLAMA_KEEP_ALIVE=5m
+OLLAMA_THINKING=true
+OLLAMA_THINK_BUDGET=4096
 ```
 
 #### Anthropic Claude (via proxy)

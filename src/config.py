@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from typing import List
+from typing import List, Optional
 
 load_dotenv()
 
@@ -74,6 +74,41 @@ class Config:
 
     # Parallel processing configuration
     MAX_PARALLEL_CHUNKS: int = int(os.getenv("MAX_PARALLEL_CHUNKS", "2"))
+
+    # Ollama-specific Configuration
+    OLLAMA_NUM_CTX: Optional[int] = (
+        int(os.getenv("OLLAMA_NUM_CTX")) if os.getenv("OLLAMA_NUM_CTX") else None
+    )
+    OLLAMA_KEEP_ALIVE: Optional[str] = os.getenv("OLLAMA_KEEP_ALIVE")
+    OLLAMA_THINKING: Optional[bool] = (
+        os.getenv("OLLAMA_THINKING", "").lower() == "true"
+        if os.getenv("OLLAMA_THINKING")
+        else None
+    )
+    OLLAMA_THINK_BUDGET: Optional[int] = (
+        int(os.getenv("OLLAMA_THINK_BUDGET"))
+        if os.getenv("OLLAMA_THINK_BUDGET")
+        else None
+    )
+
+    @classmethod
+    def get_ollama_extra_body(cls) -> Optional[dict]:
+        """Build extra_body dict for Ollama-specific options.
+
+        Returns None when no Ollama options are configured (standard OpenAI usage).
+        """
+        extra = {}
+
+        if cls.OLLAMA_NUM_CTX is not None:
+            extra["num_ctx"] = cls.OLLAMA_NUM_CTX
+        if cls.OLLAMA_KEEP_ALIVE is not None:
+            extra["keep_alive"] = cls.OLLAMA_KEEP_ALIVE
+        if cls.OLLAMA_THINKING is not None:
+            extra["thinking"] = cls.OLLAMA_THINKING
+        if cls.OLLAMA_THINK_BUDGET is not None:
+            extra["think_budget"] = cls.OLLAMA_THINK_BUDGET
+
+        return extra if extra else None
 
     @classmethod
     def validate(cls) -> None:

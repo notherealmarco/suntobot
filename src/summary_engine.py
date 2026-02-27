@@ -1,6 +1,5 @@
 """LLM integration for generating summaries."""
 
-import openai
 import logging
 import re
 from typing import List, Optional, Dict
@@ -8,6 +7,7 @@ from dataclasses import dataclass
 
 from config import Config
 from database import Message
+from llm_client import LLMClient
 from time_utils import format_timestamp_for_display
 import markdown
 
@@ -337,9 +337,7 @@ def sanitize_html(text: str, chat_prefix: str = "") -> str:
 
 class SummaryEngine:
     def __init__(self, db_manager):
-        self.client = openai.AsyncOpenAI(
-            api_key=Config.OPENAI_API_KEY, base_url=Config.OPENAI_BASE_URL
-        )
+        self.llm_client = LLMClient()
         self.db_manager = db_manager
         self.chunk_cache_manager = ChunkCacheManager(db_manager)
 
@@ -380,7 +378,7 @@ class SummaryEngine:
         )
 
         try:
-            response = await self.client.chat.completions.create(
+            response = await self.llm_client.create_chat_completion(
                 model=Config.SUMMARY_MODEL,
                 messages=[
                     {
@@ -533,7 +531,7 @@ class SummaryEngine:
                 "{username}", requesting_username
             ).replace("{time_range}", time_range_desc)
 
-            response = await self.client.chat.completions.create(
+            response = await self.llm_client.create_chat_completion(
                 model=Config.SUMMARY_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -669,7 +667,7 @@ class SummaryEngine:
         )
 
         try:
-            response = await self.client.chat.completions.create(
+            response = await self.llm_client.create_chat_completion(
                 model=Config.SUMMARY_MODEL,
                 messages=[
                     {"role": "system", "content": Config.MENTION_SYSTEM_PROMPT},
@@ -857,10 +855,8 @@ class SummaryEngine:
 
         while True:
             try:
-                # Generate summary using OpenAI with proper Config prompt
-                response = await self.client.chat.completions.create(
+                response = await self.llm_client.create_chat_completion(
                     model=Config.SUMMARY_MODEL,
-                    reasoning_effort= None,
                     messages=[
                         {
                             "role": "system",
@@ -901,7 +897,7 @@ class SummaryEngine:
         ).replace("{time_range}", time_range_desc)
 
         try:
-            response = await self.client.chat.completions.create(
+            response = await self.llm_client.create_chat_completion(
                 model=Config.SUMMARY_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
