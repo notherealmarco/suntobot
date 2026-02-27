@@ -55,4 +55,3 @@ class ImageAnalyzer:
         except Exception as e:
             logger.error(f"Failed to analyze image data: {e}")
             return None
-

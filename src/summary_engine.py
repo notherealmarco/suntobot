@@ -202,6 +202,7 @@ def strip_thinking(text: str) -> str:
     """
     return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
+
 def strip_html_tags(text: str) -> str:
     """
     Strip all HTML tags from the input text.
@@ -238,7 +239,7 @@ def sanitize_html(text: str, chat_prefix: str = "") -> str:
         return text
 
     # Handle LLM bad links
-    text = re.sub(r'\[(\d+)](?!\()', r'[link](\1)', text)
+    text = re.sub(r"\[(\d+)](?!\()", r"[link](\1)", text)
 
     # Convert Markdown to HTML
     text = markdown.markdown(text)
@@ -397,8 +398,6 @@ class SummaryEngine:
                     },
                 ],
             )
-
-
 
             return strip_thinking(response.choices[0].message.content).strip()
 
@@ -871,12 +870,14 @@ class SummaryEngine:
                     ],
                 )
 
-                summary = strip_thinking((
-                    response.choices[0]
-                    .message.content.strip()
-                    .replace("</end_of_turn>", "")
-                    .replace("</start_of_turn>", "")
-                ))
+                summary = strip_thinking(
+                    (
+                        response.choices[0]
+                        .message.content.strip()
+                        .replace("</end_of_turn>", "")
+                        .replace("</start_of_turn>", "")
+                    )
+                )
                 logger.info("Successfully generated chunk summary")
                 return summary
 

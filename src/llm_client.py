@@ -2,7 +2,6 @@
 
 import openai
 import logging
-from typing import Optional
 
 from config import Config
 
@@ -21,7 +20,9 @@ class LLMClient:
         if self._extra_body:
             logger.info(f"Ollama extra_body configured: {self._extra_body}")
 
-    async def create_chat_completion(self, **kwargs) -> openai.types.chat.ChatCompletion:
+    async def create_chat_completion(
+        self, **kwargs
+    ) -> openai.types.chat.ChatCompletion:
         """Proxy for client.chat.completions.create with Ollama options merged in.
 
         Any caller-supplied extra_body keys take precedence over the global config.

@@ -15,9 +15,9 @@ def _load_prompt_from_file(filename: str) -> str:
     # Navigate to the prompts directory (one level up from src, then into prompts)
     prompts_dir = current_dir.parent / "prompts"
     file_path = prompts_dir / filename
-    
+
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             return f.read().strip()
     except FileNotFoundError:
         raise FileNotFoundError(f"Prompt file not found: {file_path}")
@@ -57,12 +57,20 @@ class Config:
     # Load prompts from text files
     SYSTEM_PROMPT: str = _load_prompt_from_file("system_prompt.txt")
     SYSTEM_PROMPT_SUFFIX: str = _load_prompt_from_file("system_prompt_suffix.txt")
-    SYSTEM_PROMPT_CHUNK_PREAMBLE: str = _load_prompt_from_file("system_prompt_chunk_preamble.txt")
+    SYSTEM_PROMPT_CHUNK_PREAMBLE: str = _load_prompt_from_file(
+        "system_prompt_chunk_preamble.txt"
+    )
     MENTION_SYSTEM_PROMPT: str = _load_prompt_from_file("mention_system_prompt.txt")
     CHUNK_SYSTEM_PROMPT: str = _load_prompt_from_file("chunk_system_prompt.txt")
-    CHUNK_SYSTEM_PROMPT_SUFFIX: str = _load_prompt_from_file("chunk_system_prompt_suffix.txt")
-    META_SUMMARY_SYSTEM_PROMPT: str = _load_prompt_from_file("meta_summary_system_prompt.txt")
-    META_SUMMARY_SYSTEM_PROMPT_SUFFIX: str = _load_prompt_from_file("meta_summary_system_prompt_suffix.txt")
+    CHUNK_SYSTEM_PROMPT_SUFFIX: str = _load_prompt_from_file(
+        "chunk_system_prompt_suffix.txt"
+    )
+    META_SUMMARY_SYSTEM_PROMPT: str = _load_prompt_from_file(
+        "meta_summary_system_prompt.txt"
+    )
+    META_SUMMARY_SYSTEM_PROMPT_SUFFIX: str = _load_prompt_from_file(
+        "meta_summary_system_prompt_suffix.txt"
+    )
 
     # Image Analysis Configuration
     IMAGE_ANALYSIS_ENABLED: bool = (
