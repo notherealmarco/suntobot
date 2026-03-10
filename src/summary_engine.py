@@ -839,20 +839,26 @@ class SummaryEngine:
         logger.info(f"Pre-warming cache for chat {chat_id}")
         return await self.ensure_chunks_processed(chat_id)
 
+    @staticmethod
+    def _is_context_too_long(error: Exception) -> bool:
+        msg = str(error).lower()
+        return "prompt too long" in msg or "context length" in msg or "context window" in msg
+
     async def _generate_chunk_summary(self, messages: List[Message]) -> str:
         """
         Generate a summary for a chunk of messages.
-        Simple method that formats messages and sends to LLM for summarization.
+        If the prompt exceeds the model's context window the chunk is split in
+        half and each half is summarised independently, so the method works
+        regardless of how small the model's context is.
         """
         if not messages:
             return ""
 
         logger.info(f"Generating summary for chunk of {len(messages)} messages")
 
-        # Format messages for LLM
         formatted_content = self._format_messages_for_llm(messages, "system", "")
 
-        while True:
+        for attempt in range(3):
             try:
                 response = await self.llm_client.create_chat_completion(
                     model=Config.SUMMARY_MODEL,
@@ -882,8 +888,22 @@ class SummaryEngine:
                 return summary
 
             except Exception as e:
+                if self._is_context_too_long(e):
+                    if len(messages) == 1:
+                        logger.error("Single message exceeds model context, skipping")
+                        return ""
+                    mid = len(messages) // 2
+                    logger.warning(
+                        f"Prompt too long for {len(messages)} messages, splitting into two halves"
+                    )
+                    first = await self._generate_chunk_summary(messages[:mid])
+                    second = await self._generate_chunk_summary(messages[mid:])
+                    return "\n".join(filter(None, [first, second]))
+
                 logger.error(f"Failed to generate chunk summary: {e}, retrying")
                 await asyncio.sleep(5)
+
+        return ""
 
     async def _generate_simple_summary(
         self, messages: List[Message], requesting_username: str, time_range_desc: str
