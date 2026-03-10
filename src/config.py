@@ -84,6 +84,7 @@ class Config:
     MAX_PARALLEL_CHUNKS: int = int(os.getenv("MAX_PARALLEL_CHUNKS", "2"))
 
     # Ollama-specific Configuration
+    OLLAMA_HOST: Optional[str] = os.getenv("OLLAMA_HOST")
     OLLAMA_NUM_CTX: Optional[int] = (
         int(os.getenv("OLLAMA_NUM_CTX")) if os.getenv("OLLAMA_NUM_CTX") else None
     )
