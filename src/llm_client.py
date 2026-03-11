@@ -102,10 +102,44 @@ class LLMClient:
                 )
             raise
 
+    @staticmethod
+    def _convert_messages_for_ollama(messages):
+        """Convert OpenAI-style multimodal messages to native Ollama format.
+
+        OpenAI vision format uses ``content`` as a list of typed dicts::
+
+            {"type": "text", "text": "..."}, {"type": "image_url", "image_url": {"url": "data:...;base64,XXX"}}
+
+        The native Ollama API expects ``content`` as a plain string and images
+        in a separate ``images`` list of raw base64 strings.
+        """
+        converted = []
+        for msg in messages:
+            content = msg.get("content", "") if isinstance(msg, dict) else ""
+            if isinstance(content, list):
+                text_parts = []
+                images = []
+                for part in content:
+                    if part.get("type") == "text":
+                        text_parts.append(part.get("text", ""))
+                    elif part.get("type") == "image_url":
+                        url = part.get("image_url", {}).get("url", "")
+                        # Strip the data-URI prefix to get raw base64
+                        if ";base64," in url:
+                            url = url.split(";base64,", 1)[1]
+                        images.append(url)
+                new_msg = {"role": msg.get("role", "user"), "content": "\n".join(text_parts)}
+                if images:
+                    new_msg["images"] = images
+                converted.append(new_msg)
+            else:
+                converted.append(msg)
+        return converted
+
     async def _ollama_chat(self, **kwargs) -> _OllamaResponseCompat:
         """Translate an OpenAI-style call into a native Ollama API call."""
         model = kwargs.get("model")
-        messages = kwargs.get("messages", [])
+        messages = self._convert_messages_for_ollama(kwargs.get("messages", []))
 
         options = {}
         if Config.OLLAMA_NUM_CTX is not None:
