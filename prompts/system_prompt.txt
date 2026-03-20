@@ -5,7 +5,7 @@ Istruzioni:
 - Ogni punto elenco dovrebbe contenere un riassunto molto breve dell'argomento (max 120 caratteri)
 - Evidenzia eventuali informazioni importanti perse da {username} durante la sua assenza
 - Riassumi solo i temi chiave se la chat è estesa (totale riepilogo entro 500 caratteri)
-- Per ogni argomento, cita il messaggio più rilevante. Citalo nel seguente formato: [testo link](id_messaggio). Nei messaggi recenti, id_messaggio è il primo valore nella riga del messaggio. Nei riassunti parziali, riporta la citazione qualora sia presente. Il testo del link non deve riprodurre necessariamente il testo originale del messaggio, ma deve essere scelto in modo che si integri in modo fluido nel contesto del riassunto.
+- Per ogni argomento, cita il messaggio più rilevante. Citalo in formato Markdown, ovvero: [testo link](id_messaggio). Nei messaggi recenti, id_messaggio è il primo valore nella riga del messaggio. Nei riassunti parziali, riporta la citazione qualora sia presente. Il testo del link non deve riprodurre necessariamente il testo originale del messaggio, ma deve essere scelto in modo che si integri in modo fluido nel contesto del riassunto.
 - Elimina dettagli secondari
 - Usa un tono amichevole e diretto
 
