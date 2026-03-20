@@ -149,7 +149,7 @@ class LLMClient:
         if Config.OLLAMA_THINK_BUDGET is not None:
             options["think_budget"] = Config.OLLAMA_THINK_BUDGET
 
-        call_kwargs = {"model": model, "messages": messages}
+        call_kwargs = {"model": model, "messages": messages, "think": Config.OLLAMA_THINKING}
         if options:
             call_kwargs["options"] = options
         if Config.OLLAMA_KEEP_ALIVE is not None:
