@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import time
 
 import telegram
 from PIL import Image
@@ -10,7 +12,7 @@ from telegram.ext import ContextTypes
 from config import Config
 from database import DatabaseManager
 from image_analyzer import ImageAnalyzer
-from summary_engine import SummaryEngine, strip_html_tags
+from summary_engine import SummaryEngine, strip_html_tags, strip_thinking, sanitize_html
 
 logger = logging.getLogger(__name__)
 
@@ -309,32 +311,104 @@ class MessageHandler:
                 },
             )
 
-            # Generate reply
-            reply_text = await self.summary_engine.generate_mention_reply(
-                messages=context_messages,
-                mention_message=mention_message_obj,
-                replied_to_message=replied_to_message,
-                has_historical_context=has_historical_context,
-            )
+            # Stream reply: send a placeholder, then edit it as tokens arrive
+            EDIT_INTERVAL = 3  # seconds between edits to respect rate limits
+            accumulated_text = ""
+            stream_failed = False
+            sent_message = None
 
-            # Send reply
+            # Send initial placeholder message
             try:
                 sent_message = await context.bot.send_message(
                     chat_id=message.chat_id,
-                    text=reply_text,
-                    reply_to_message_id=message.message_id,
-                    parse_mode="HTML",
-                )
-            except telegram.error.BadRequest:
-                logger.warning(
-                    "Failed to parse HTML in bot reply, sending plain text instead. %s",
-                    reply_text,
-                )
-                sent_message = await context.bot.send_message(
-                    chat_id=message.chat_id,
-                    text=strip_html_tags(reply_text),
+                    text="\u23f3",
                     reply_to_message_id=message.message_id,
                 )
+            except Exception as send_err:
+                logger.error(f"Failed to send placeholder message: {send_err}")
+
+            if sent_message:
+                last_edit_time = 0.0
+                try:
+                    async for chunk in self.summary_engine.generate_mention_reply_stream(
+                        messages=context_messages,
+                        mention_message=mention_message_obj,
+                        replied_to_message=replied_to_message,
+                        has_historical_context=has_historical_context,
+                    ):
+                        accumulated_text += chunk
+                        now = time.monotonic()
+                        if now - last_edit_time >= EDIT_INTERVAL:
+                            try:
+                                await context.bot.edit_message_text(
+                                    chat_id=message.chat_id,
+                                    message_id=sent_message.message_id,
+                                    text=accumulated_text,
+                                )
+                                last_edit_time = now
+                            except Exception as edit_err:
+                                logger.debug(f"Intermediate edit error: {edit_err}")
+                except Exception as stream_err:
+                    logger.warning(
+                        f"Streaming failed, falling back to non-streaming: {stream_err}"
+                    )
+                    stream_failed = True
+
+            # Fallback: generate reply without streaming if stream failed
+            if stream_failed or not accumulated_text:
+                reply_text = await self.summary_engine.generate_mention_reply(
+                    messages=context_messages,
+                    mention_message=mention_message_obj,
+                    replied_to_message=replied_to_message,
+                    has_historical_context=has_historical_context,
+                )
+            else:
+                # Sanitize the accumulated streamed text
+                reply_text = sanitize_html(
+                    strip_thinking(accumulated_text.strip())
+                )
+
+            # Final edit with sanitized HTML (or send new message if no placeholder)
+            if sent_message:
+                try:
+                    await context.bot.edit_message_text(
+                        chat_id=message.chat_id,
+                        message_id=sent_message.message_id,
+                        text=reply_text,
+                        parse_mode="HTML",
+                    )
+                except telegram.error.BadRequest:
+                    logger.warning(
+                        "Failed to parse HTML in bot reply, editing as plain text. %s",
+                        reply_text,
+                    )
+                    try:
+                        await context.bot.edit_message_text(
+                            chat_id=message.chat_id,
+                            message_id=sent_message.message_id,
+                            text=strip_html_tags(reply_text),
+                        )
+                    except Exception as edit_err:
+                        logger.error(f"Failed to edit with plain text: {edit_err}")
+            else:
+                # No placeholder was sent, send a fresh message
+                try:
+                    sent_message = await context.bot.send_message(
+                        chat_id=message.chat_id,
+                        text=reply_text,
+                        reply_to_message_id=message.message_id,
+                        parse_mode="HTML",
+                    )
+                except telegram.error.BadRequest:
+                    logger.warning(
+                        "Failed to parse HTML in bot reply, sending plain text. %s",
+                        reply_text,
+                    )
+                    sent_message = await context.bot.send_message(
+                        chat_id=message.chat_id,
+                        text=strip_html_tags(reply_text),
+                        reply_to_message_id=message.message_id,
+                    )
 
             # Store the bot's reply in the database
             try:

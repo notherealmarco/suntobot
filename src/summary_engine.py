@@ -650,6 +650,100 @@ class SummaryEngine:
             logger.error(f"Failed to generate smart summary: {e}")
             return f"Sorry, I couldn't generate a summary at this time. Error: {str(e)}"
 
+    async def generate_summary_stream(
+        self,
+        messages: List[Message],
+        requesting_username: str,
+        time_range_desc: str,
+    ):
+        """Streaming entry point for summaries.
+
+        Performs all prep work (chunk processing, caching) non-streamed,
+        then streams only the final LLM call, yielding raw text chunks.
+        The caller is responsible for ``strip_thinking`` + ``sanitize_html``
+        on the fully accumulated result.
+        """
+        if not messages:
+            yield f"No messages found in the specified time period ({time_range_desc})."
+            return
+
+        chat_id = messages[0].chat_id
+        await self.ensure_chunks_processed(chat_id)
+
+        start_message_id = messages[0].message_id
+        end_message_id = messages[-1].message_id
+
+        cached_summaries = []
+        cached_chunks = self.db_manager.get_cached_chunks_for_range(
+            chat_id, start_message_id, end_message_id
+        )
+        for chunk in cached_chunks:
+            cached_summaries.append(chunk.summary_text)
+
+        unprocessed_messages = await self._get_unprocessed_messages_in_range(
+            chat_id, start_message_id, end_message_id
+        )
+
+        content_parts = []
+
+        if len(cached_summaries) > 10:
+            while len(cached_summaries) > 0:
+                part_summaries = cached_summaries[: min(10, len(cached_summaries))]
+                cached_summaries = cached_summaries[min(10, len(cached_summaries)) :]
+                meta_summary = await self._create_meta_summary(
+                    part_summaries, time_range_desc,
+                )
+                content_parts.append(meta_summary)
+
+        if cached_summaries:
+            content_parts.extend(cached_summaries)
+
+        if unprocessed_messages:
+            raw_content = self._format_messages_for_llm(
+                unprocessed_messages, requesting_username, time_range_desc
+            )
+            content_parts.append(f"Recent messages:\n{raw_content}")
+
+        if not content_parts:
+            yield f"No content found for the specified time period ({time_range_desc})."
+            return
+
+        if len(content_parts) == 1 and not cached_summaries:
+            # Simple summary — stream it
+            formatted_messages = self._format_messages_for_llm(
+                messages, requesting_username, time_range_desc
+            )
+            system_prompt = Config.SYSTEM_PROMPT.replace(
+                "{username}", requesting_username
+            ).replace("{time_range}", time_range_desc)
+
+            async for chunk in self.llm_client.create_chat_completion_stream(
+                model=Config.SUMMARY_MODEL,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": formatted_messages},
+                ],
+            ):
+                yield chunk
+        else:
+            # Final summary from combined content — stream it
+            combined_content = "\n\n".join(content_parts)
+            system_prompt = Config.SYSTEM_PROMPT.replace(
+                "{username}", requesting_username
+            ).replace("{time_range}", time_range_desc)
+
+            async for chunk in self.llm_client.create_chat_completion_stream(
+                model=Config.SUMMARY_MODEL,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "user",
+                        "content": f"{Config.SYSTEM_PROMPT_CHUNK_PREAMBLE + chr(10) + chr(10)}Partial summaries for period {time_range_desc}:\n{combined_content}\n\n{Config.SYSTEM_PROMPT_SUFFIX}",
+                    },
+                ],
+            ):
+                yield chunk
+
     async def generate_mention_reply(
         self,
         messages: List[Message],
@@ -682,6 +776,35 @@ class SummaryEngine:
             return (
                 f"Sorry, I couldn't process your request at this time. Error: {str(e)}"
             )
+
+    async def generate_mention_reply_stream(
+        self,
+        messages: List[Message],
+        mention_message: Message,
+        replied_to_message: Optional[Message] = None,
+        has_historical_context: bool = False,
+    ):
+        """Stream a reply to a mention, yielding raw text chunks.
+
+        The caller is responsible for calling ``strip_thinking`` and
+        ``sanitize_html`` on the fully accumulated text after iteration.
+        """
+        if not messages:
+            yield "I don't have enough context to provide a helpful response."
+            return
+
+        formatted_context = self._format_messages_for_mention_reply(
+            messages, mention_message, replied_to_message, has_historical_context
+        )
+
+        async for chunk in self.llm_client.create_chat_completion_stream(
+            model=Config.SUMMARY_MODEL,
+            messages=[
+                {"role": "system", "content": Config.MENTION_SYSTEM_PROMPT},
+                {"role": "user", "content": formatted_context},
+            ],
+        ):
+            yield chunk
 
     def _format_messages_for_llm(
         self, messages: List[Message], requesting_username: str, time_range_desc: str

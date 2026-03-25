@@ -2,7 +2,7 @@
 
 import openai
 import logging
-from typing import Any
+from typing import Any, AsyncIterator
 
 from config import Config
 
@@ -157,3 +157,72 @@ class LLMClient:
 
         response = await self._ollama_client.chat(**call_kwargs)
         return _OllamaResponseCompat(response.message.content)
+
+    async def create_chat_completion_stream(self, **kwargs) -> AsyncIterator[str]:
+        """Create a streaming chat completion, yielding text chunks.
+
+        When using the native Ollama client, ``stream=True`` is passed and
+        each chunk's ``message.content`` is yielded.  Thinking chunks are
+        silently skipped.  For the OpenAI backend, the streaming delta
+        content is yielded instead.
+        """
+        try:
+            if self._ollama_client is not None:
+                async for chunk in self._ollama_chat_stream(**kwargs):
+                    yield chunk
+                return
+
+            # OpenAI streaming path
+            if self._extra_body:
+                caller_extra = kwargs.pop("extra_body", None) or {}
+                merged = {**self._extra_body, **caller_extra}
+                kwargs["extra_body"] = merged
+
+            kwargs["stream"] = True
+            stream = await self._openai_client.chat.completions.create(**kwargs)
+            async for chunk in stream:
+                delta = chunk.choices[0].delta if chunk.choices else None
+                if delta and delta.content:
+                    yield delta.content
+        except Exception as e:
+            if self._is_context_too_long(e):
+                messages = kwargs.get("messages", [])
+                char_count = self._prompt_char_count(messages)
+                logger.error(
+                    f"Context length exceeded (stream) — "
+                    f"prompt chars: {char_count}, "
+                    f"num_ctx: {Config.OLLAMA_NUM_CTX}, "
+                    f"model: {kwargs.get('model', 'unknown')}"
+                )
+            raise
+
+    async def _ollama_chat_stream(self, **kwargs) -> AsyncIterator[str]:
+        """Streaming variant of ``_ollama_chat``.  Yields content text chunks."""
+        model = kwargs.get("model")
+        messages = self._convert_messages_for_ollama(kwargs.get("messages", []))
+
+        options = {}
+        if Config.OLLAMA_NUM_CTX is not None:
+            options["num_ctx"] = Config.OLLAMA_NUM_CTX
+        if Config.OLLAMA_THINKING is not None:
+            options["thinking"] = Config.OLLAMA_THINKING
+        if Config.OLLAMA_THINK_BUDGET is not None:
+            options["think_budget"] = Config.OLLAMA_THINK_BUDGET
+
+        call_kwargs = {
+            "model": model,
+            "messages": messages,
+            "think": Config.OLLAMA_THINKING,
+            "stream": True,
+        }
+        if options:
+            call_kwargs["options"] = options
+        if Config.OLLAMA_KEEP_ALIVE is not None:
+            call_kwargs["keep_alive"] = Config.OLLAMA_KEEP_ALIVE
+
+        stream = await self._ollama_client.chat(**call_kwargs)
+        async for chunk in stream:
+            # Skip thinking chunks, only yield content
+            if chunk.message.content:
+                yield chunk.message.content
+

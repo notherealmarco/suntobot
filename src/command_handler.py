@@ -1,5 +1,6 @@
 import logging
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -8,10 +9,12 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from config import Config
 from database import DatabaseManager
-from summary_engine import SummaryEngine, strip_html_tags
+from summary_engine import SummaryEngine, strip_html_tags, strip_thinking, sanitize_html
 from time_utils import get_time_range_description, parse_time_interval
 
 logger = logging.getLogger(__name__)
+
+EDIT_INTERVAL = 3  # seconds between edits to respect Telegram rate limits
 
 
 class CommandHandler:
@@ -50,13 +53,46 @@ class CommandHandler:
             else:
                 chat_prefix = f"c/{str(chat_id)[4:]}"
 
-            summary = await self.summary_engine.generate_summary(
-                messages=messages,
-                requesting_username=username,
-                time_range_desc=time_range_desc,
-                chat_prefix=chat_prefix,
-            )
+            # Stream the summary, progressively editing the loading message
+            accumulated_text = ""
+            stream_failed = False
+            last_edit_time = 0.0
 
+            try:
+                async for chunk in self.summary_engine.generate_summary_stream(
+                    messages=messages,
+                    requesting_username=username,
+                    time_range_desc=time_range_desc,
+                ):
+                    accumulated_text += chunk
+                    now = time.monotonic()
+                    if now - last_edit_time >= EDIT_INTERVAL:
+                        try:
+                            await loading_message.edit_text(
+                                f"📋 **Sunto**\n\n{accumulated_text}"
+                            )
+                            last_edit_time = now
+                        except Exception as edit_err:
+                            logger.debug(f"Intermediate edit error: {edit_err}")
+            except Exception as stream_err:
+                logger.warning(
+                    f"Summary streaming failed, falling back to non-streaming: {stream_err}"
+                )
+                stream_failed = True
+
+            if stream_failed or not accumulated_text:
+                summary = await self.summary_engine.generate_summary(
+                    messages=messages,
+                    requesting_username=username,
+                    time_range_desc=time_range_desc,
+                    chat_prefix=chat_prefix,
+                )
+            else:
+                summary = sanitize_html(
+                    strip_thinking(accumulated_text.strip()), chat_prefix
+                )
+
+            # Final edit with sanitized HTML
             try:
                 await loading_message.edit_text(
                     f"📋 <b>Sunto</b>\n\n{summary}", parse_mode="HTML"
