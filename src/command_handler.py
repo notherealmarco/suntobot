@@ -87,7 +87,7 @@ class CommandHandler:
                                     await sent_messages[target_index].edit_text(
                                         sanitized, parse_mode="HTML"
                                     )
-                            except Exception as finalize_err:
+                            except Exception:
                                 try:
                                     if target_index == 0:
                                         await sent_messages[target_index].edit_text(
