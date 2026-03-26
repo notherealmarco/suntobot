@@ -17,6 +17,32 @@ import asyncio
 logger = logging.getLogger(__name__)
 
 
+def split_long_message(text: str, max_length: int = 4000) -> List[str]:
+    """Splits a single long message into chunks by newlines, ensuring each chunk is <= max_length."""
+    if len(text) <= max_length:
+        return [text]
+
+    lines = text.split('\n')
+    chunks = []
+    current_chunk = []
+    current_length = 0
+
+    for line in lines:
+        line_len = len(line) + 1  # +1 for the newline
+        if current_length + line_len > max_length and current_chunk:
+            chunks.append('\n'.join(current_chunk))
+            current_chunk = [line]
+            current_length = line_len
+        else:
+            current_chunk.append(line)
+            current_length += line_len
+
+    if current_chunk:
+        chunks.append('\n'.join(current_chunk))
+
+    return chunks
+
+
 @dataclass
 class ChunkBoundary:
     """Represents the boundary of a message chunk."""
@@ -346,67 +372,7 @@ class SummaryEngine:
         """Rough estimation of token count based on character count."""
         return len(text) // Config.CHARS_PER_TOKEN
 
-    async def _create_meta_summary(
-        self,
-        chunk_summaries: List[str],
-        time_range_desc: str,
-    ) -> str:
-        """
-        Create a final meta-summary from chunk summaries.
 
-        Args:
-            chunk_summaries: List of individual chunk summaries
-            requesting_username: User requesting the summary
-            time_range_desc: Description of the time range
-            total_messages: Total number of messages processed
-
-        Returns:
-            Final comprehensive summary
-        """
-        if not chunk_summaries:
-            return f"No content to summarize for {time_range_desc}."
-
-        # Filter out empty summaries
-        valid_summaries = [
-            s for s in chunk_summaries if s.strip() and not s.startswith("[Error")
-        ]
-
-        if not valid_summaries:
-            return f"Unable to generate summary for {time_range_desc} due to processing errors."
-
-        chunks_text = "\n\n".join(
-            [f"Part {i + 1}: {summary}" for i, summary in enumerate(valid_summaries)]
-        )
-
-        try:
-            response = await self.llm_client.create_chat_completion(
-                model=Config.SUMMARY_MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": Config.META_SUMMARY_SYSTEM_PROMPT.format(
-                            num_chunks=len(valid_summaries)
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": chunks_text
-                        + "\n\n"
-                        + Config.META_SUMMARY_SYSTEM_PROMPT_SUFFIX.format(
-                            time_range=time_range_desc
-                        ),
-                    },
-                ],
-            )
-
-            return strip_thinking(response.choices[0].message.content).strip()
-
-        except Exception as e:
-            logger.error(f"Failed to create meta-summary: {e}")
-            # Fallback: return combined summaries with basic formatting
-            return f"Summary for {time_range_desc}:\n\n" + "\n\n".join(
-                [f"• {s}" for s in valid_summaries]
-            )
 
     async def ensure_chunks_processed(self, chat_id: int) -> int:
         """
@@ -514,38 +480,7 @@ class SummaryEngine:
             if start_message_id <= msg.message_id <= end_message_id
         ]
 
-    async def _create_final_summary(
-        self,
-        combined_content: str,
-        requesting_username: str,
-        time_range_desc: str,
-        message_count: int,
-    ) -> str:
-        """
-        Create a final summary from combined cached summaries and raw content.
-        """
-        try:
-            # Use the proper Config system prompt for final summaries
-            system_prompt = Config.SYSTEM_PROMPT.replace(
-                "{username}", requesting_username
-            ).replace("{time_range}", time_range_desc)
 
-            response = await self.llm_client.create_chat_completion(
-                model=Config.SUMMARY_MODEL,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {
-                        "role": "user",
-                        "content": f"{Config.SYSTEM_PROMPT_CHUNK_PREAMBLE + '\n\n'}Partial summaries for period {time_range_desc}:\n{combined_content}\n\n{Config.SYSTEM_PROMPT_SUFFIX}",
-                    },
-                ],
-            )
-
-            return strip_thinking(response.choices[0].message.content).strip()
-
-        except Exception as e:
-            logger.error(f"Failed to create final summary: {e}")
-            return f"Summary for {time_range_desc} ({message_count} messages):\n\n{combined_content}"
 
     async def generate_smart_summary(
         self, messages: List[Message], requesting_username: str, time_range_desc: str
@@ -586,49 +521,24 @@ class SummaryEngine:
         )
 
         # Build the final content
-        content_parts = []
-
-        if len(cached_summaries) > 10:
-            while len(cached_summaries) > 0:
-                # Take the first 10 cached summaries
-                part_summaries = cached_summaries[: min(10, len(cached_summaries))]
-                cached_summaries = cached_summaries[min(10, len(cached_summaries)) :]
-
-                meta_summary = await self._create_meta_summary(
-                    part_summaries,
-                    time_range_desc,
-                )
-                content_parts.append(meta_summary)
+        final_parts = []
 
         if cached_summaries:
-            content_parts.extend(cached_summaries)
+            final_parts.extend(cached_summaries)
             logger.info(f"Using {len(cached_summaries)} cached summaries")
 
         if unprocessed_messages:
-            # Add raw unprocessed messages
-            raw_content = self._format_messages_for_llm(
-                unprocessed_messages, requesting_username, time_range_desc
+            # Generate summary just for the recent unprocessed messages
+            tail_summary = await self._generate_simple_summary(
+                unprocessed_messages, requesting_username, "Recent messages"
             )
-            content_parts.append(f"Recent messages:\n{raw_content}")
-            logger.info(f"Including {len(unprocessed_messages)} unprocessed messages")
+            final_parts.append(tail_summary)
+            logger.info(f"Generated tail summary for {len(unprocessed_messages)} unprocessed messages")
 
-        if not content_parts:
-            return (
-                f"No content found for the specified time period ({time_range_desc})."
-            )
+        if not final_parts:
+            return f"No content found for the specified time period ({time_range_desc})."
 
-        # Generate final summary
-        if len(content_parts) == 1 and not cached_summaries:
-            # Only unprocessed messages - use simple approach
-            return await self._generate_simple_summary(
-                messages, requesting_username, time_range_desc
-            )
-        else:
-            # Combine cached + unprocessed content
-            combined_content = "\n\n".join(content_parts)
-            return await self._create_final_summary(
-                combined_content, requesting_username, time_range_desc, len(messages)
-            )
+        return "\n\n".join(final_parts)
 
     async def generate_summary(
         self,
@@ -684,62 +594,31 @@ class SummaryEngine:
             chat_id, start_message_id, end_message_id
         )
 
-        content_parts = []
-
-        if len(cached_summaries) > 10:
-            while len(cached_summaries) > 0:
-                part_summaries = cached_summaries[: min(10, len(cached_summaries))]
-                cached_summaries = cached_summaries[min(10, len(cached_summaries)) :]
-                meta_summary = await self._create_meta_summary(
-                    part_summaries, time_range_desc,
-                )
-                content_parts.append(meta_summary)
-
-        if cached_summaries:
-            content_parts.extend(cached_summaries)
-
-        if unprocessed_messages:
-            raw_content = self._format_messages_for_llm(
-                unprocessed_messages, requesting_username, time_range_desc
-            )
-            content_parts.append(f"Recent messages:\n{raw_content}")
-
-        if not content_parts:
+        if not cached_summaries and not unprocessed_messages:
             yield f"No content found for the specified time period ({time_range_desc})."
             return
 
-        if len(content_parts) == 1 and not cached_summaries:
-            # Simple summary — stream it
+        # Yield all cached summaries immediately
+        if cached_summaries:
+            joined_cached = "\n\n".join(cached_summaries)
+            if unprocessed_messages:
+                joined_cached += "\n\n"
+            yield joined_cached
+
+        # Stream the summary generation for only the unprocessed tail
+        if unprocessed_messages:
             formatted_messages = self._format_messages_for_llm(
-                messages, requesting_username, time_range_desc
+                unprocessed_messages, requesting_username, "Recent messages"
             )
             system_prompt = Config.SYSTEM_PROMPT.replace(
                 "{username}", requesting_username
-            ).replace("{time_range}", time_range_desc)
+            ).replace("{time_range}", "Recent messages")
 
             async for chunk in self.llm_client.create_chat_completion_stream(
                 model=Config.SUMMARY_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": formatted_messages},
-                ],
-            ):
-                yield chunk
-        else:
-            # Final summary from combined content — stream it
-            combined_content = "\n\n".join(content_parts)
-            system_prompt = Config.SYSTEM_PROMPT.replace(
-                "{username}", requesting_username
-            ).replace("{time_range}", time_range_desc)
-
-            async for chunk in self.llm_client.create_chat_completion_stream(
-                model=Config.SUMMARY_MODEL,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {
-                        "role": "user",
-                        "content": f"{Config.SYSTEM_PROMPT_CHUNK_PREAMBLE + chr(10) + chr(10)}Partial summaries for period {time_range_desc}:\n{combined_content}\n\n{Config.SYSTEM_PROMPT_SUFFIX}",
-                    },
                 ],
             ):
                 yield chunk

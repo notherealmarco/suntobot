@@ -328,6 +328,7 @@ class MessageHandler:
 
             if sent_message:
                 last_edit_time = 0.0
+                last_successful_text = ""
                 try:
                     async for chunk in self.summary_engine.generate_mention_reply_stream(
                         messages=context_messages,
@@ -338,15 +339,29 @@ class MessageHandler:
                         accumulated_text += chunk
                         now = time.monotonic()
                         if now - last_edit_time >= EDIT_INTERVAL:
-                            try:
-                                await context.bot.edit_message_text(
-                                    chat_id=message.chat_id,
-                                    message_id=sent_message.message_id,
-                                    text=accumulated_text,
-                                )
+                            current_text = accumulated_text + " ✏️ ..."
+                            if current_text != last_successful_text:
                                 last_edit_time = now
-                            except Exception as edit_err:
-                                logger.debug(f"Intermediate edit error: {edit_err}")
+                                try:
+                                    await context.bot.edit_message_text(
+                                        chat_id=message.chat_id,
+                                        message_id=sent_message.message_id,
+                                        text=current_text,
+                                        parse_mode="HTML",
+                                    )
+                                    last_successful_text = current_text
+                                except telegram.error.BadRequest:
+                                    try:
+                                        await context.bot.edit_message_text(
+                                            chat_id=message.chat_id,
+                                            message_id=sent_message.message_id,
+                                            text=current_text,
+                                        )
+                                        last_successful_text = current_text
+                                    except Exception as edit_err:
+                                        logger.debug(f"Intermediate plain edit error: {edit_err}")
+                                except Exception as edit_err:
+                                    logger.debug(f"Intermediate edit error: {edit_err}")
                 except Exception as stream_err:
                     logger.warning(
                         f"Streaming failed, falling back to non-streaming: {stream_err}"

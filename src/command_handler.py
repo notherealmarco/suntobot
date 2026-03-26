@@ -9,7 +9,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from config import Config
 from database import DatabaseManager
-from summary_engine import SummaryEngine, strip_html_tags, strip_thinking, sanitize_html
+from summary_engine import SummaryEngine, strip_html_tags, strip_thinking, sanitize_html, split_long_message
 from time_utils import get_time_range_description, parse_time_interval
 
 logger = logging.getLogger(__name__)
@@ -57,6 +57,8 @@ class CommandHandler:
             accumulated_text = ""
             stream_failed = False
             last_edit_time = 0.0
+            last_successful_text = ""
+            sent_messages = [loading_message]
 
             try:
                 async for chunk in self.summary_engine.generate_summary_stream(
@@ -66,14 +68,70 @@ class CommandHandler:
                 ):
                     accumulated_text += chunk
                     now = time.monotonic()
+                    
                     if now - last_edit_time >= EDIT_INTERVAL:
-                        try:
-                            await loading_message.edit_text(
-                                f"📋 **Sunto**\n\n{accumulated_text}"
-                            )
-                            last_edit_time = now
-                        except Exception as edit_err:
-                            logger.debug(f"Intermediate edit error: {edit_err}")
+                        message_chunks = split_long_message(accumulated_text, max_length=4000)
+                        
+                        # Process previous completely filled chunks
+                        while len(sent_messages) < len(message_chunks):
+                            target_index = len(sent_messages) - 1
+                            finalized_text = message_chunks[target_index]
+                            sanitized = sanitize_html(strip_thinking(finalized_text.strip()), chat_prefix)
+                            
+                            try:
+                                if target_index == 0:
+                                    await sent_messages[target_index].edit_text(
+                                        f"📋 <b>Sunto</b>\n\n{sanitized}", parse_mode="HTML"
+                                    )
+                                else:
+                                    await sent_messages[target_index].edit_text(
+                                        sanitized, parse_mode="HTML"
+                                    )
+                            except Exception as finalize_err:
+                                try:
+                                    if target_index == 0:
+                                        await sent_messages[target_index].edit_text(
+                                            f"📋 Sunto\n\n{strip_html_tags(sanitized)}"
+                                        )
+                                    else:
+                                        await sent_messages[target_index].edit_text(
+                                            strip_html_tags(sanitized)
+                                        )
+                                except Exception as plain_err:
+                                    logger.error(f"Failed to finalize chunk {target_index}: {plain_err}")
+                                
+                            # Send a new message for the next chunk
+                            try:
+                                new_msg = await message.reply_text("👨‍🍳 Cooking next part...")
+                                sent_messages.append(new_msg)
+                                last_successful_text = "" # Reset for the new message
+                            except Exception as send_err:
+                                logger.error(f"Failed to send next chunk placeholder: {send_err}")
+                                break # prevent infinite loop
+                            
+                        # Now deal with the currently streaming chunk (the last one)
+                        if len(sent_messages) == len(message_chunks):
+                            active_chunk = message_chunks[-1]
+                            if len(sent_messages) == 1:
+                                current_text = f"📋 <b>Sunto</b>\n\n{active_chunk} ✏️ ..."
+                            else:
+                                current_text = f"{active_chunk} ✏️ ..."
+                            
+                            if current_text != last_successful_text:
+                                last_edit_time = now
+                                try:
+                                    await sent_messages[-1].edit_text(current_text, parse_mode="HTML")
+                                    last_successful_text = current_text
+                                except telegram.error.BadRequest:
+                                    try:
+                                        # Graceful fallback to plaintext if we have unclosed tags mid-stream
+                                        fallback_text = current_text.replace("<b>", "**").replace("</b>", "**")
+                                        await sent_messages[-1].edit_text(fallback_text)
+                                        last_successful_text = current_text
+                                    except Exception as edit_err:
+                                        logger.debug(f"Intermediate plain edit error: {edit_err}")
+                                except Exception as edit_err:
+                                    logger.debug(f"Intermediate edit error: {edit_err}")
             except Exception as stream_err:
                 logger.warning(
                     f"Summary streaming failed, falling back to non-streaming: {stream_err}"
@@ -87,23 +145,48 @@ class CommandHandler:
                     time_range_desc=time_range_desc,
                     chat_prefix=chat_prefix,
                 )
+                final_chunks = split_long_message(summary, max_length=4000)
             else:
-                summary = sanitize_html(
-                    strip_thinking(accumulated_text.strip()), chat_prefix
-                )
+                final_chunks = split_long_message(accumulated_text, max_length=4000)
 
-            # Final edit with sanitized HTML
-            try:
-                await loading_message.edit_text(
-                    f"📋 <b>Sunto</b>\n\n{summary}", parse_mode="HTML"
-                )
-            except telegram.error.BadRequest:
-                logger.warning(
-                    "Failed to parse HTML in summary, using plain text: %s", summary
-                )
-                await loading_message.edit_text(
-                    f"📋 Sunto\n\n{strip_html_tags(summary)}"
-                )
+            # Universal robust finalize loop for all chunks
+            for i, chunk_text in enumerate(final_chunks):
+                if i >= len(sent_messages):
+                    try:
+                        new_msg = await message.reply_text("👨‍🍳 Finishing up...")
+                        sent_messages.append(new_msg)
+                    except Exception as e:
+                        logger.error(f"Failed to append finish msg: {e}")
+                        break
+                        
+                msg_to_edit = sent_messages[i]
+                
+                # If stream succeeded, we need to sanitize the text here. If failure, generate_summary did it already.
+                sanitized_chunk = chunk_text
+                if not stream_failed:
+                    sanitized_chunk = sanitize_html(strip_thinking(chunk_text.strip()), chat_prefix)
+                    
+                try:
+                    if i == 0:
+                        await msg_to_edit.edit_text(f"📋 <b>Sunto</b>\n\n{sanitized_chunk}", parse_mode="HTML")
+                    else:
+                        await msg_to_edit.edit_text(sanitized_chunk, parse_mode="HTML")
+                except Exception as finalize_err:
+                    logger.warning(f"Failed to parse HTML in final chunk {i}, using plain text: {finalize_err}")
+                    try:
+                        if i == 0:
+                            await msg_to_edit.edit_text(f"📋 Sunto\n\n{strip_html_tags(sanitized_chunk)}")
+                        else:
+                            await msg_to_edit.edit_text(strip_html_tags(sanitized_chunk))
+                    except Exception as e:
+                        logger.error(f"Failed fallback edit for chunk {i}: {e}")
+
+            # Delete any leftover messages if the summary shrank
+            for extra_idx in range(len(final_chunks), len(sent_messages)):
+                try:
+                    await sent_messages[extra_idx].delete()
+                except Exception as e:
+                    logger.warning(f"Failed to delete unused placeholder message: {e}")
 
         except Exception as e:
             logger.error(f"Failed to generate summary: {e}")
