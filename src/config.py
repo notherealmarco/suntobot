@@ -65,20 +65,20 @@ class Config:
     CHUNK_SYSTEM_PROMPT_SUFFIX: str = _load_prompt_from_file(
         "chunk_system_prompt_suffix.txt"
     )
-    # META_SUMMARY_SYSTEM_PROMPT: str = _load_prompt_from_file(
-    #     "meta_summary_system_prompt.txt"
-    # )
-    # META_SUMMARY_SYSTEM_PROMPT_SUFFIX: str = _load_prompt_from_file(
-    #     "meta_summary_system_prompt_suffix.txt"
-    # )
+    META_SUMMARY_SYSTEM_PROMPT: str = _load_prompt_from_file(
+        "meta_summary_system_prompt.txt"
+    )
+    META_SUMMARY_SYSTEM_PROMPT_SUFFIX: str = _load_prompt_from_file(
+        "meta_summary_system_prompt_suffix.txt"
+    )
 
     # Image Analysis Configuration
     IMAGE_ANALYSIS_ENABLED: bool = (
         os.getenv("IMAGE_ANALYSIS_ENABLED", "true").lower() == "true"
     )
 
-    # Chunk sizes for medium and large summaries
-    SUMMARY_CHUNK_SIZE: int = int(os.getenv("SUMMARY_CHUNK_SIZE", "70"))
+    # Chunk size: max tokens per chunk (char/4 estimate ≈ tokens)
+    MAX_CHUNK_TOKENS: int = int(os.getenv("MAX_CHUNK_TOKENS", "6000"))
 
     # Parallel processing configuration
     MAX_PARALLEL_CHUNKS: int = int(os.getenv("MAX_PARALLEL_CHUNKS", "2"))

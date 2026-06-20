@@ -368,57 +368,98 @@ class SummaryEngine:
         self.db_manager = db_manager
         self.chunk_cache_manager = ChunkCacheManager(db_manager)
 
-    def _estimate_tokens(self, text: str) -> int:
-        """Rough estimation of token count based on character count."""
-        return len(text) // Config.CHARS_PER_TOKEN
+    @staticmethod
+    def _estimate_tokens(text: str) -> int:
+        return len(text) // 4
+
+    @staticmethod
+    def _format_message_line(msg: Message) -> str:
+        username = msg.username or f"user_{msg.user_id}"
+        timestamp = format_timestamp_for_display(msg.timestamp)
+        if msg.message_text:
+            content_line = msg.message_text
+        elif msg.image_description:
+            content_line = f"[sent an image: {msg.image_description}]"
+        elif msg.has_photo:
+            content_line = "[sent an image]"
+        else:
+            content_line = ""
+        if msg.is_forwarded:
+            if msg.forward_from in ("user", "hidden_user"):
+                original_author = msg.forward_from_username
+            elif msg.forward_from == "channel":
+                original_author = f"channel {msg.forward_from_username}"
+            else:
+                original_author = "hidden author"
+            return f"{msg.message_id} [{timestamp}] {username} forwarded from {original_author}: {content_line}"
+        return f"{msg.message_id} [{timestamp}] {username}: {content_line}"
+
+    def _pack_into_token_chunks(self, messages: List[Message], max_tokens: int) -> List[List[Message]]:
+        chunks = []
+        current = []
+        current_tokens = 0
+        for msg in messages:
+            msg_tokens = self._estimate_tokens(self._format_message_line(msg))
+            if current_tokens + msg_tokens > max_tokens and current:
+                chunks.append(current)
+                current = [msg]
+                current_tokens = msg_tokens
+            else:
+                current.append(msg)
+                current_tokens += msg_tokens
+        if current:
+            chunks.append(current)
+        return chunks
 
 
 
     async def ensure_chunks_processed(self, chat_id: int) -> int:
         """
-        Ensure at most SUMMARY_CHUNK_SIZE messages remain unprocessed.
+        Pack unprocessed messages into token-budget chunks and process them.
 
-        Simple logic with parallel processing:
-        1. Get all unprocessed messages
-        2. If >= 70 unprocessed, process multiple chunks in parallel (up to MAX_PARALLEL_CHUNKS)
-        3. Repeat until < 70 unprocessed messages remain
+        1. Fetch unprocessed messages
+        2. Pack into chunks sized by MAX_CHUNK_TOKENS
+        3. Process full chunks (>= 80% of target budget) in parallel
+        4. Repeat until no full chunks remain
 
         Returns:
             Number of new chunks processed
         """
-
         chunks_processed = 0
+        threshold = max(1, Config.MAX_CHUNK_TOKENS * 0.8)
 
         while True:
             unprocessed_messages = await self._get_unprocessed_messages(chat_id)
-
-            if len(unprocessed_messages) < Config.SUMMARY_CHUNK_SIZE:
+            if not unprocessed_messages:
                 break
 
-            # Determine how many chunks we can process in parallel
-            num_possible_chunks = len(unprocessed_messages) // Config.SUMMARY_CHUNK_SIZE
-            num_chunks_to_process = min(num_possible_chunks, Config.MAX_PARALLEL_CHUNKS)
+            chunks = self._pack_into_token_chunks(unprocessed_messages, Config.MAX_CHUNK_TOKENS)
+            full_chunks = [
+                c for c in chunks
+                if sum(
+                    self._estimate_tokens(self._format_message_line(m))
+                    for m in c
+                ) >= threshold
+            ]
 
-            # Create tasks for parallel processing
+            if not full_chunks:
+                break
+
+            num_to_process = min(len(full_chunks), Config.MAX_PARALLEL_CHUNKS)
+
             tasks = []
-            for i in range(num_chunks_to_process):
-                start_idx = i * Config.SUMMARY_CHUNK_SIZE
-                end_idx = start_idx + Config.SUMMARY_CHUNK_SIZE
-                chunk_to_process = unprocessed_messages[start_idx:end_idx]
-
+            for i in range(num_to_process):
                 task = self._process_and_cache_chunk(
-                    chat_id, chunk_to_process, chunks_processed + i
+                    chat_id, full_chunks[i], chunks_processed + i
                 )
                 tasks.append(task)
 
             logger.info(
-                f"Processing {num_chunks_to_process} chunks in parallel for chat {chat_id}"
+                f"Processing {num_to_process} chunks in parallel for chat {chat_id}"
             )
 
-            # Execute all chunks in parallel
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Count successful chunks
             successful_chunks = 0
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
@@ -428,7 +469,7 @@ class SummaryEngine:
 
             chunks_processed += successful_chunks
             logger.info(
-                f"Successfully processed {successful_chunks}/{num_chunks_to_process} chunks"
+                f"Successfully processed {successful_chunks}/{num_to_process} chunks"
             )
 
         if chunks_processed > 0:
@@ -538,7 +579,35 @@ class SummaryEngine:
         if not final_parts:
             return f"No content found for the specified time period ({time_range_desc})."
 
-        return "\n\n".join(final_parts)
+        if len(final_parts) == 1:
+            return final_parts[0]
+
+        joined = "\n\n".join(final_parts)
+        num_chunks = len(final_parts)
+        try:
+            response = await self.llm_client.create_chat_completion(
+                model=Config.SUMMARY_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": Config.META_SUMMARY_SYSTEM_PROMPT.replace(
+                            "{num_chunks}", str(num_chunks)
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": joined
+                        + "\n\n"
+                        + Config.META_SUMMARY_SYSTEM_PROMPT_SUFFIX.replace(
+                            "{time_range}", time_range_desc
+                        ),
+                    },
+                ],
+            )
+            return strip_thinking(response.choices[0].message.content.strip())
+        except Exception as e:
+            logger.error(f"Meta-summary synthesis failed, falling back to raw join: {e}")
+            return joined
 
     async def generate_summary(
         self,
@@ -598,30 +667,43 @@ class SummaryEngine:
             yield f"No content found for the specified time period ({time_range_desc})."
             return
 
-        # Yield all cached summaries immediately
-        if cached_summaries:
-            joined_cached = "\n\n".join(cached_summaries)
-            if unprocessed_messages:
-                joined_cached += "\n\n"
-            yield joined_cached
+        # Build final_parts: cached summaries + tail summary
+        final_parts = list(cached_summaries)
 
-        # Stream the summary generation for only the unprocessed tail
         if unprocessed_messages:
-            formatted_messages = self._format_messages_for_llm(
+            tail_summary = await self._generate_simple_summary(
                 unprocessed_messages, requesting_username, "Recent messages"
             )
-            system_prompt = Config.SYSTEM_PROMPT.replace(
-                "{username}", requesting_username
-            ).replace("{time_range}", "Recent messages")
+            final_parts.append(tail_summary)
 
-            async for chunk in self.llm_client.create_chat_completion_stream(
-                model=Config.SUMMARY_MODEL,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": formatted_messages},
-                ],
-            ):
-                yield chunk
+        # If only one part, yield it directly — no meta-summary needed
+        if len(final_parts) == 1:
+            yield final_parts[0]
+            return
+
+        # Multiple parts: stream a meta-summary synthesis call
+        joined = "\n\n".join(final_parts)
+        num_chunks = len(final_parts)
+        async for chunk in self.llm_client.create_chat_completion_stream(
+            model=Config.SUMMARY_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": Config.META_SUMMARY_SYSTEM_PROMPT.replace(
+                        "{num_chunks}", str(num_chunks)
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": joined
+                    + "\n\n"
+                    + Config.META_SUMMARY_SYSTEM_PROMPT_SUFFIX.replace(
+                        "{time_range}", time_range_desc
+                    ),
+                },
+            ],
+        ):
+            yield chunk
 
     async def generate_mention_reply(
         self,

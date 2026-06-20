@@ -10,6 +10,24 @@ from summary_engine import strip_thinking
 logger = logging.getLogger(__name__)
 
 
+def _extract_description(msg) -> Optional[str]:
+    content = msg.content
+    if isinstance(content, list):
+        text = "".join(
+            block.text for block in content if hasattr(block, "text")
+        )
+    elif isinstance(content, str):
+        text = content
+    else:
+        text = ""
+    if not text:
+        text = getattr(msg, "reasoning_content", "") or ""
+    text = text.strip()
+    if not text:
+        return None
+    return strip_thinking(text) or None
+
+
 class ImageAnalyzer:
     def __init__(self):
         self.llm_client = LLMClient()
@@ -44,13 +62,12 @@ class ImageAnalyzer:
                         ],
                     }
                 ],
-                max_tokens=150,
-                temperature=0.3,
             )
 
-            description = response.choices[0].message.content.strip()
-            logger.info(f"Generated image description: {description}")
-            return strip_thinking(description)
+            msg = response.choices[0].message
+            description = _extract_description(msg)
+            logger.info(f"Generated image description: {description!r}")
+            return description
 
         except Exception as e:
             logger.error(f"Failed to analyze image data: {e}")
