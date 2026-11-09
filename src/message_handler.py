@@ -68,7 +68,7 @@ class MessageHandler:
                 # Try to get the photo description from database
                 try:
                     replied_message_from_db = self.db_manager.get_message_by_message_id(
-                        message.reply_to_message.message_id
+                        chat_id, message.reply_to_message.message_id
                     )
                     if (
                         replied_message_from_db
@@ -146,6 +146,7 @@ class MessageHandler:
                 is_forwarded=is_forwarded,
                 forward_from_username=forward_from_username,
                 forward_from=forward_from,
+                timestamp=message.date,
             )
             logger.debug(f"Saved message {message_id} from user {username}")
         except Exception as e:
@@ -236,7 +237,7 @@ class MessageHandler:
             has_historical_context = False
             if message.reply_to_message:
                 replied_to_message = self.db_manager.get_message_by_message_id(
-                    message.reply_to_message.message_id
+                    message.chat_id, message.reply_to_message.message_id
                 )
 
                 # If we found the replied-to message and it's not in recent context,
@@ -438,6 +439,7 @@ class MessageHandler:
                     is_forwarded=False,
                     forward_from_username=None,
                     forward_from=None,
+                    timestamp=sent_message.date,
                 )
                 logger.debug(f"Saved bot reply message {sent_message.message_id}")
             except Exception as save_error:

@@ -11,10 +11,13 @@ from sqlalchemy import (
     String,
     Text,
     create_engine,
+    exists,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import func
+
+from time_utils import to_naive_utc, utc_now
 
 Base = declarative_base()
 
@@ -102,10 +105,12 @@ class DatabaseManager:
         is_forwarded: bool = False,
         forward_from_username: Optional[str] = None,
         forward_from: Optional[str] = None,
+        timestamp: Optional[datetime] = None,
     ) -> None:
         session = self.get_session()
         try:
             message = Message(
+                timestamp=to_naive_utc(timestamp) if timestamp else utc_now(),
                 chat_id=chat_id,
                 user_id=user_id,
                 username=username,
@@ -133,7 +138,8 @@ class DatabaseManager:
             messages = (
                 session.query(Message)
                 .filter(
-                    Message.chat_id == chat_id, Message.timestamp >= since_timestamp
+                    Message.chat_id == chat_id,
+                    Message.timestamp >= to_naive_utc(since_timestamp),
                 )
                 .order_by(Message.timestamp.asc())
                 .all()
@@ -151,7 +157,7 @@ class DatabaseManager:
         session = self.get_session()
         try:
             # Get messages from the last N hours or last N messages, whichever is smaller
-            cutoff_time = datetime.utcnow() - timedelta(hours=hours_back)
+            cutoff_time = utc_now() - timedelta(hours=hours_back)
 
             messages = (
                 session.query(Message)
@@ -166,12 +172,19 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def get_message_by_message_id(self, message_id: int) -> Optional[Message]:
-        """Get a specific message by its Telegram message ID."""
+    def get_message_by_message_id(
+        self, chat_id: int, message_id: int
+    ) -> Optional[Message]:
+        """Get a specific message by its Telegram message ID.
+
+        Telegram message IDs are only unique within a chat, so chat_id is required.
+        """
         session = self.get_session()
         try:
             message = (
-                session.query(Message).filter(Message.message_id == message_id).first()
+                session.query(Message)
+                .filter(Message.chat_id == chat_id, Message.message_id == message_id)
+                .first()
             )
             return message
         finally:
@@ -372,18 +385,21 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def get_recent_messages(self, chat_id: int, limit: int = 10000) -> List[Message]:
-        """Get recent messages for a chat, ordered by message_id (oldest first)."""
+    def get_unprocessed_messages(self, chat_id: int) -> List[Message]:
+        """Get messages not covered by any cached chunk, ordered by message_id."""
         session = self.get_session()
         try:
-            messages = (
+            covered = exists().where(
+                ChunkSummary.chat_id == Message.chat_id,
+                ChunkSummary.start_message_id <= Message.message_id,
+                ChunkSummary.end_message_id >= Message.message_id,
+            )
+            return (
                 session.query(Message)
-                .filter(Message.chat_id == chat_id)
+                .filter(Message.chat_id == chat_id, ~covered)
                 .order_by(Message.message_id.asc())
-                .limit(limit)
                 .all()
             )
-            return messages
         finally:
             session.close()
 

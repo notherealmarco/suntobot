@@ -472,56 +472,69 @@ class SummaryEngine:
                 f"Successfully processed {successful_chunks}/{num_to_process} chunks"
             )
 
+            if successful_chunks == 0:
+                # Failed chunks stay unprocessed and are retried on the next
+                # trigger; summaries include their messages raw meanwhile.
+                break
+
         if chunks_processed > 0:
             logger.info(f"Processed {chunks_processed} new chunks for chat {chat_id}")
 
         return chunks_processed
 
     async def _get_unprocessed_messages(self, chat_id: int) -> List[Message]:
+        """Messages not covered by any cached chunk, sorted by message_id."""
+        return self.db_manager.get_unprocessed_messages(chat_id)
+
+    async def _prepare_summary_parts(
+        self, messages: List[Message], requesting_username: str
+    ) -> List[str]:
+        """Build the partial summaries that make up a summary of ``messages``.
+
+        Cached chunk summaries are used only when the chunk lies entirely
+        inside the requested range; otherwise they would pull in older
+        discussion. Messages in the range not covered by such a chunk are
+        summarised directly.
         """
-        Get all messages that are not covered by any cached chunk.
-        Returns them sorted by message_id (oldest first).
-        """
-        # Get all messages for this chat
-        all_messages = self.db_manager.get_recent_messages(chat_id, limit=50000)
-        if not all_messages:
-            return []
+        chat_id = messages[0].chat_id
+        await self.ensure_chunks_processed(chat_id)
 
-        # Get all cached chunks for this chat
-        cached_chunks = self.db_manager.get_cached_chunks_for_chat(chat_id)
-        if not cached_chunks:
-            # No cached chunks, all messages are unprocessed
-            return sorted(all_messages, key=lambda m: m.message_id)
+        start_message_id = min(m.message_id for m in messages)
+        end_message_id = max(m.message_id for m in messages)
 
-        # Find messages not covered by any cached chunk
-        unprocessed = []
-        for message in all_messages:
-            is_covered = False
-            for chunk in cached_chunks:
-                if chunk.start_message_id <= message.message_id <= chunk.end_message_id:
-                    is_covered = True
-                    break
-            if not is_covered:
-                unprocessed.append(message)
-
-        return sorted(unprocessed, key=lambda m: m.message_id)
-
-    async def _get_unprocessed_messages_in_range(
-        self, chat_id: int, start_message_id: int, end_message_id: int
-    ) -> List[Message]:
-        """
-        Get unprocessed messages within a specific message ID range.
-        """
-        unprocessed_messages = await self._get_unprocessed_messages(chat_id)
-
-        # Filter to only messages in the requested range
-        return [
-            msg
-            for msg in unprocessed_messages
-            if start_message_id <= msg.message_id <= end_message_id
+        inside_chunks = [
+            chunk
+            for chunk in self.db_manager.get_cached_chunks_for_range(
+                chat_id, start_message_id, end_message_id
+            )
+            if chunk.start_message_id >= start_message_id
+            and chunk.end_message_id <= end_message_id
+            and chunk.summary_text
         ]
 
+        raw_messages = [
+            m
+            for m in messages
+            if not any(
+                c.start_message_id <= m.message_id <= c.end_message_id
+                for c in inside_chunks
+            )
+        ]
 
+        parts = [chunk.summary_text for chunk in inside_chunks]
+        logger.info(
+            f"Summary for chat {chat_id}: {len(parts)} cached chunks, "
+            f"{len(raw_messages)} raw messages"
+        )
+
+        if raw_messages:
+            parts.append(
+                await self._generate_simple_summary(
+                    raw_messages, requesting_username, "Recent messages"
+                )
+            )
+
+        return parts
 
     async def generate_smart_summary(
         self, messages: List[Message], requesting_username: str, time_range_desc: str
@@ -536,45 +549,9 @@ class SummaryEngine:
                 f"No messages found in the specified time period ({time_range_desc})."
             )
 
-        chat_id = messages[0].chat_id
-        logger.info(
-            f"Generating smart summary for {len(messages)} messages in chat {chat_id}"
+        final_parts = await self._prepare_summary_parts(
+            messages, requesting_username
         )
-
-        # Ensure chunks are processed first
-        await self.ensure_chunks_processed(chat_id)
-
-        # Get the message range we need to summarize
-        start_message_id = messages[0].message_id
-        end_message_id = messages[-1].message_id
-
-        # Get cached summaries that cover part of this range
-        cached_summaries = []
-        cached_chunks = self.db_manager.get_cached_chunks_for_range(
-            chat_id, start_message_id, end_message_id
-        )
-        for chunk in cached_chunks:
-            cached_summaries.append(chunk.summary_text)
-
-        # Get unprocessed messages in this range
-        unprocessed_messages = await self._get_unprocessed_messages_in_range(
-            chat_id, start_message_id, end_message_id
-        )
-
-        # Build the final content
-        final_parts = []
-
-        if cached_summaries:
-            final_parts.extend(cached_summaries)
-            logger.info(f"Using {len(cached_summaries)} cached summaries")
-
-        if unprocessed_messages:
-            # Generate summary just for the recent unprocessed messages
-            tail_summary = await self._generate_simple_summary(
-                unprocessed_messages, requesting_username, "Recent messages"
-            )
-            final_parts.append(tail_summary)
-            logger.info(f"Generated tail summary for {len(unprocessed_messages)} unprocessed messages")
 
         if not final_parts:
             return f"No content found for the specified time period ({time_range_desc})."
@@ -646,35 +623,13 @@ class SummaryEngine:
             yield f"No messages found in the specified time period ({time_range_desc})."
             return
 
-        chat_id = messages[0].chat_id
-        await self.ensure_chunks_processed(chat_id)
-
-        start_message_id = messages[0].message_id
-        end_message_id = messages[-1].message_id
-
-        cached_summaries = []
-        cached_chunks = self.db_manager.get_cached_chunks_for_range(
-            chat_id, start_message_id, end_message_id
-        )
-        for chunk in cached_chunks:
-            cached_summaries.append(chunk.summary_text)
-
-        unprocessed_messages = await self._get_unprocessed_messages_in_range(
-            chat_id, start_message_id, end_message_id
+        final_parts = await self._prepare_summary_parts(
+            messages, requesting_username
         )
 
-        if not cached_summaries and not unprocessed_messages:
+        if not final_parts:
             yield f"No content found for the specified time period ({time_range_desc})."
             return
-
-        # Build final_parts: cached summaries + tail summary
-        final_parts = list(cached_summaries)
-
-        if unprocessed_messages:
-            tail_summary = await self._generate_simple_summary(
-                unprocessed_messages, requesting_username, "Recent messages"
-            )
-            final_parts.append(tail_summary)
 
         # If only one part, yield it directly — no meta-summary needed
         if len(final_parts) == 1:
@@ -975,7 +930,7 @@ class SummaryEngine:
                 if self._is_context_too_long(e):
                     if len(messages) == 1:
                         logger.error("Single message exceeds model context, skipping")
-                        return ""
+                        return "[one message too long to summarize was omitted]"
                     mid = len(messages) // 2
                     logger.warning(
                         f"Prompt too long for {len(messages)} messages, splitting into two halves"
@@ -1040,6 +995,13 @@ class SummaryEngine:
 
         # Generate summary
         summary = await self._generate_chunk_summary(chunk_messages)
+        if not summary:
+            # Caching an empty summary would mark these messages as processed
+            # and drop them from every future summary.
+            raise RuntimeError(
+                f"Empty summary for chunk {chunk_messages[0].message_id}-"
+                f"{chunk_messages[-1].message_id} in chat {chat_id}"
+            )
 
         # Cache the summary
         chunk_id = (
